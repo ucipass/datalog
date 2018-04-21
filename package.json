@@ -1,5 +1,5 @@
 {
-  "name": "datalog",
+  "name": "ucipass-chart",
   "version": "1.0.0",
   "description": "timestamp and log: livedata by minute/hour/day/week/month/year",
   "main": "index.js",
@@ -22,5 +22,8 @@
   "dependencies": {
     "moment": "^2.22.1",
     "winston": "^2.4.1"
+  },
+  "directories": {
+    "test": "test"
   }
 }
