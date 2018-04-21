@@ -349,4 +349,10 @@ module.exports = class{
         return(this.chartWeek.labels[index])
     }
 
+    getChartSecond(){ return this.chartSecond   }
+    getChartMinute(){ return this.chartMinute  }
+    getChartHour(){ return this.chartHour  }
+    getChartDay(){ return this.chartDay  }
+    getChartWeek(){ return this.chartWeek  }
+    
 }
