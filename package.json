@@ -1,0 +1,26 @@
+{
+  "name": "datalog",
+  "version": "1.0.0",
+  "description": "timestamp and log: livedata by minute/hour/day/week/month/year",
+  "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/mocha/bin/_mocha ./test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ucipass/datalog.git"
+  },
+  "author": "ucipass",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ucipass/datalog/issues"
+  },
+  "homepage": "https://github.com/ucipass/datalog#readme",
+  "devDependencies": {
+    "mocha": "^5.1.1"
+  },
+  "dependencies": {
+    "moment": "^2.22.1",
+    "winston": "^2.4.1"
+  }
+}
