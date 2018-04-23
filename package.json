@@ -20,7 +20,9 @@
     "mocha": "^5.1.1"
   },
   "dependencies": {
+    "json2csv": "^4.1.2",
     "moment": "^2.22.1",
+    "ucipass-file": "^1.0.14",
     "winston": "^2.4.1"
   },
   "directories": {

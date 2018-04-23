@@ -1,14 +1,36 @@
-var fs = require("fs")
-var path = require("path")
-var logger = require('winston');
-var moment = require('moment')
+const fs = require("fs")
+const path = require("path")
+const logger = require('winston');
 logger.emitErrs = true;
 logger.loggers.add('DATALOG', { console: { level: 'debug', label: "DATALOG", handleExceptions: true, json: false, colorize: true}});
-var log = logger.loggers.get('DATALOG');
+const moment = require('moment')
+const util = require("util")
+const File = require('ucipass-file')
+const Readable = require('stream').Readable
+const Json2csvTransform = require('json2csv').Transform;
+const readdir = util.promisify(fs.readdir)        //fs.readdir(path[, options], callback)
+const log = logger.loggers.get('DATALOG');
+const opts = { fields: ['max', 'avg', 'min'] }
+const transformOpts = { highWaterMark: 16384, encoding: 'utf-8' };
 
 module.exports = class{
     constructor(logname){
-        this.logname = logname
+        this.logname = logname ? logname : "anonymous"
+        this.logFileMin = path.join(__dirname,this.logname+"_min.log")
+        this.logFileSec = path.join(__dirname,this.logname+"_sec.log")
+        this.input = new Readable()
+        this.input
+            //.on('data', (chunk) => {console.log(`READABLE Received ${chunk.length} bytes of data.`); })
+            //.on('end', () => { console.log('READABLE There will be no more data.'); })
+            //.on('readable', () => { console.log(`READABLE data available: ${this.input.read()}`); })
+            .on('error', (error) => { console.log('READABLE error:',error); });
+        this.output = fs.createWriteStream(this.logFileSec, { encoding: 'utf8' });
+        this.json2csv = new Json2csvTransform({ fields: ['label', 'max', 'avg', 'min'] }, { highWaterMark: 16384, encoding: 'utf-8' });
+        this.json2csv
+            //.on('header', header => console.log("JSON2CSV Header:",header))
+            //.on('line', line => console.log("JSON2CSV Line:",line))
+            .on('error', err => console.log("JSON2CSV Error:",err));
+        this.input.pipe(this.json2csv).pipe(this.output);
         this.chartSize = 60
         this.dataLast = null
         this.timeLast = null
@@ -38,7 +60,7 @@ module.exports = class{
         this.chartWeek = {
             labels:[],
             series:[[],[],[]]
-            }
+        }
         for( let i=0 ; i < this.chartSize ; i++){
             this.chartSecond.labels.push("")
             this.chartSecond.series[0].push(0)
@@ -61,6 +83,31 @@ module.exports = class{
             this.chartWeek.series[1].push(0)
             this.chartWeek.series[2].push(0)
         }
+        this.test = 1
+    }
+    async saveSecond(){
+        let json = {
+            label: this.getChartSecTime(59),
+            max: this.getChartSecData(59)[0],
+            avg: this.getChartSecData(59)[1],
+            min: this.getChartSecData(59)[2]
+        }
+        await this.input.push(JSON.stringify(json))
+        return true
+    }
+    async saveMinute(){
+        let dirs = await readdir(__dirname)
+        let data = []
+        let chart = this.chartMinute
+        chart.labels.forEach((item,index)=>{
+            data.push( {  max: chart.series[0][index], avg: chart.series[1][index], min: chart.series[2][index]  })
+        })
+        //let csv = json2csv( data,  { fields:[ 'max','avg','min'] });
+        //let f = new File(this.logFileSec)
+        //await f.writeString(csv)
+        return true
+        //dirs.indexOf(this.logFileMin)
+        //console.log(dirs)
     }
     name(data){
         return this.logname
@@ -310,10 +357,10 @@ module.exports = class{
             this.chartLive=[]
             this.chartLive.push([data,timeLive.format(this.formatSec)])
             this.logSeconds(timeLive)
-
         }
         this.timeLast = timeLive.clone()
-        this.dataLast = data     
+        this.dataLast = data
+        this.saveSecond()  
         return true
     }
 
@@ -355,4 +402,15 @@ module.exports = class{
     getChartDay(){ return this.chartDay  }
     getChartWeek(){ return this.chartWeek  }
     
+}
+
+if (require.main == module){
+    console.log("called directly")
+    let m = module.exports
+    let j = new m()
+
+    j.log(1,moment())
+    j.log(2,moment().add(2,"seconds"))
+    j.log(3,moment().add(4,"seconds"))
+    j.input.push(null) //to signal the end
 }
