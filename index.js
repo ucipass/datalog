@@ -1,6 +1,7 @@
 const fs = require("fs")
 const path = require("path")
 const logger = require('winston');
+var csv = require("fast-csv");
 logger.emitErrs = true;
 logger.loggers.add('DATALOG', { console: { level: 'debug', label: "DATALOG", handleExceptions: true, json: false, colorize: true}});
 const moment = require('moment')
@@ -18,19 +19,19 @@ module.exports = class{
         this.logname = logname ? logname : "anonymous"
         this.logFileMin = path.join(__dirname,this.logname+"_min.log")
         this.logFileSec = path.join(__dirname,this.logname+"_sec.log")
-        this.input = new Readable()
-        this.input
-            //.on('data', (chunk) => {console.log(`READABLE Received ${chunk.length} bytes of data.`); })
-            //.on('end', () => { console.log('READABLE There will be no more data.'); })
-            //.on('readable', () => { console.log(`READABLE data available: ${this.input.read()}`); })
-            .on('error', (error) => { console.log('READABLE error:',error); });
-        this.output = fs.createWriteStream(this.logFileSec, { encoding: 'utf8' });
-        this.json2csv = new Json2csvTransform({ fields: ['label', 'max', 'avg', 'min'] }, { highWaterMark: 16384, encoding: 'utf-8' });
-        this.json2csv
-            //.on('header', header => console.log("JSON2CSV Header:",header))
-            //.on('line', line => console.log("JSON2CSV Line:",line))
-            .on('error', err => console.log("JSON2CSV Error:",err));
-        this.input.pipe(this.json2csv).pipe(this.output);
+        
+        this.streamLiveRead = csv.createWriteStream({headers: true}),
+        this.streamLiveWrite = fs.createWriteStream(this.logFileSec);
+        this.streamLiveWrite
+            .on("finish", function(){console.log("DONE!");});
+        this.streamLiveRead.pipe(this.streamLiveWrite);
+        
+        this.streamMinRead = csv.createWriteStream({headers: true}),
+        this.streamMinWrite = fs.createWriteStream(this.logFileMin);
+        this.streamMinWrite
+            .on("finish", function(){console.log("DONE!");});
+        this.streamMinRead.pipe(this.streamMinWrite);
+        
         this.chartSize = 60
         this.dataLast = null
         this.timeLast = null
@@ -85,34 +86,21 @@ module.exports = class{
         }
         this.test = 1
     }
-    async saveSecond(){
+
+    async saveMinutes(){
         let json = {
-            label: this.getChartSecTime(59),
-            max: this.getChartSecData(59)[0],
-            avg: this.getChartSecData(59)[1],
-            min: this.getChartSecData(59)[2]
+            label: this.getChartMinTime(59),
+            max: this.getChartMinData(59)[0],
+            avg: this.getChartMinData(59)[1],
+            min: this.getChartMinData(59)[2]
         }
-        await this.input.push(JSON.stringify(json))
+
         return true
-    }
-    async saveMinute(){
-        let dirs = await readdir(__dirname)
-        let data = []
-        let chart = this.chartMinute
-        chart.labels.forEach((item,index)=>{
-            data.push( {  max: chart.series[0][index], avg: chart.series[1][index], min: chart.series[2][index]  })
-        })
-        //let csv = json2csv( data,  { fields:[ 'max','avg','min'] });
-        //let f = new File(this.logFileSec)
-        //await f.writeString(csv)
-        return true
-        //dirs.indexOf(this.logFileMin)
-        //console.log(dirs)
     }
     name(data){
         return this.logname
     }
-    
+
     logLive(){
         let count = 0
         let sum = 0
@@ -194,6 +182,7 @@ module.exports = class{
             return false;
         }
         let avg = sum/count
+        this.streamMinRead.write({label: ltime, max: max, avg: avg, min: min});
         toChart.labels.shift()
         toChart.series[0].shift()
         toChart.series[1].shift()
@@ -328,6 +317,7 @@ module.exports = class{
     log(input,timeLive){
         this.timeLive = timeLive
         let data = parseFloat(input)
+        this.streamLiveRead.write({label: timeLive.format(), data: data});
         if(this.dataLast === null) { //This only runs when the first data is logged
             this.dataLast = data
             this.timeLast = timeLive.clone()
@@ -344,6 +334,7 @@ module.exports = class{
         else{
             if (this.timeLast.format(this.formatMin) != timeLive.format(this.formatMin)){
                 this.logMinutes()
+                this.saveMinutes()
             }
             if (this.timeLast.format(this.formatHour) != timeLive.format(this.formatHour)){
                 this.logHours()
@@ -360,7 +351,6 @@ module.exports = class{
         }
         this.timeLast = timeLive.clone()
         this.dataLast = data
-        this.saveSecond()  
         return true
     }
 
@@ -401,16 +391,15 @@ module.exports = class{
     getChartHour(){ return this.chartHour  }
     getChartDay(){ return this.chartDay  }
     getChartWeek(){ return this.chartWeek  }
-    
+
 }
 
 if (require.main == module){
     console.log("called directly")
     let m = module.exports
-    let j = new m()
+    let j = new m("maintest")
 
     j.log(1,moment())
-    j.log(2,moment().add(2,"seconds"))
-    j.log(3,moment().add(4,"seconds"))
-    j.input.push(null) //to signal the end
+    j.log(2,moment().add(2,"hours"))
+    j.log(3,moment().add(4,"hours"))
 }

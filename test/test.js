@@ -5,10 +5,11 @@ var util = require("util")
 var moment = require("moment")
 var datalog = require("../index.js")
 const readdir = util.promisify(fs.readdir)  
+const setTimeoutPromise = util.promisify(setTimeout);
 var data = []  // 60 seconds of data [1,3,5,119] averaging 60
 const json2csv = require('json2csv').parse;
 
-describe.skip("Logging Tests" , ()=>{
+describe("Logging Tests" , ()=>{
     before("Setup Test Directory", async ()=>{
         for(let i=1; i<=60 ; i++){
             data.push(i*2-1)
@@ -185,7 +186,7 @@ describe.skip("Logging Tests" , ()=>{
         assert.equal(d.getChartHourData(59)[1],89.5)
         done()
     }).timeout(15000);
-    it.skip("Final Test", (done)=>{
+    it("Final Test", (done)=>{
         let d = new datalog("Basement")
         let timeLive = moment("2000-01-01T01:00:00")
 
@@ -236,22 +237,21 @@ describe("File Saving Tests" , ()=>{
     before("Setup Test Directory", async ()=>{
     })
 
-    it("Stream Test", async ()=>{
+    it("Second Stream Test", async ()=>{
         let j = new datalog("test")
         j.log(1,moment())
-        j.log(2,moment().add(2,"seconds"))
-        j.log(3,moment().add(4,"seconds"))
-        j.input.push(null) //to signal the end
+        j.log(2,moment().add(2,"minutes"))
+        j.log(3,moment().add(4,"minutes"))
+        await setTimeoutPromise(1000,"test")
         let files = await readdir(path.join(__dirname,".."))
         if (files.indexOf(path.basename(j.logFileSec)) >= 0){
             let s = fs.readFileSync(j.logFileSec,'utf8')
-            console.log(s)
             return Promise.resolve("File found")
         }else{
             return Promise.reject("File not found")
         }
-
-
-        return;
+    })
+    it("Stream Test2", async ()=>{
+        return Promise.resolve("File found")
     })
 })
