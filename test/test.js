@@ -178,7 +178,7 @@ describe("Logging Tests" , ()=>{
         //assert.equal(d.getChartSecData(58)[1],118)
         //assert.equal(d.getChartMinTime(59),"2000-01-01 01:01:00") 
         assert.equal(d.getChartMinTime(59),"2000-01-01 01:59:00") 
-        assert.equal(d.getChartHourTime(59),"2000-01-01 01:00") 
+        assert.equal(d.getChartHourTime(59),"2000-01-01 01") 
         assert.equal(d.getChartMinData(0)[1],minutes)
         assert.equal(d.getChartMinData(59)[1],2*minutes-1)
         assert.equal(d.getChartHourData(59)[0],178)
@@ -217,13 +217,13 @@ describe("Logging Tests" , ()=>{
             }
             if (m == 3601){
                 assert.equal(d.getChartMinTime(59),"2000-01-01 01:59:00")
-                assert.equal(d.getChartHourTime(59),"2000-01-01 01:00")
+                assert.equal(d.getChartHourTime(59),"2000-01-01 01")
                 assert.equal(d.getChartMinData(59)[0],3600)
                 assert.equal(d.getChartMinData(59)[2],3541)
             }
             if (m == 86401){
                 assert.equal(d.getChartMinTime(59),"2000-01-02 00:59:00")
-                assert.equal(d.getChartHourTime(59),"2000-01-02 00:00")
+                assert.equal(d.getChartHourTime(59),"2000-01-02 00")
                 assert.equal(d.getChartDayTime(59),"2000-01-01 Sat")
                 assert.equal(d.getChartDayData(59)[0],99999)
                 assert.equal(d.getChartDayData(59)[2],-1)            
