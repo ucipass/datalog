@@ -192,6 +192,62 @@ module.exports = class{
     getLastHour(){ return this.logHour.arrData[this.logHour.maxIndex] }
     getLastDay(){ return this.logDay.arrData[this.logDay.maxIndex] }
     getLastWeek(){ return this.logWeek.arrData[this.logWeek.maxIndex] }
+
+    getChartSecond(){
+        let array = this.logSec.arrData
+        let chart = { labels: [], series: [[],[],[]] }
+        array.forEach((item,index) => {
+            chart.labels.push( item.label )
+            chart.series[0].push(item.max)
+            chart.series[1].push(item.avg)
+            chart.series[2].push(item.min)             
+        });
+        return chart;
+    }
+    getChartMinute(){
+        let array = this.logMin.arrData
+        let chart = { labels: [], series: [[],[],[]] }
+        array.forEach((item,index) => {
+            chart.labels.push( item.label )
+            chart.series[0].push(item.max)
+            chart.series[1].push(item.avg)
+            chart.series[2].push(item.min)             
+        });
+        return chart;
+    }
+    getChartHour(){
+        let array = this.logHour.arrData
+        let chart = { labels: [], series: [[],[],[]] }
+        array.forEach((item,index) => {
+            chart.labels.push( item.label )
+            chart.series[0].push(item.max)
+            chart.series[1].push(item.avg)
+            chart.series[2].push(item.min)             
+        });
+        return chart;
+    }
+    getChartDay(){
+        let array = this.logDay.arrData
+        let chart = { labels: [], series: [[],[],[]] }
+        array.forEach((item,index) => {
+            chart.labels.push( item.label )
+            chart.series[0].push(item.max)
+            chart.series[1].push(item.avg)
+            chart.series[2].push(item.min)             
+        });
+        return chart;
+    }
+    getChartWeek(){
+        let array = this.logWeek.arrData
+        let chart = { labels: [], series: [[],[],[]] }
+        array.forEach((item,index) => {
+            chart.labels.push( item.label )
+            chart.series[0].push(item.max)
+            chart.series[1].push(item.avg)
+            chart.series[2].push(item.min)             
+        });
+        return chart;
+    }
 }
 
 if (require.main == module){

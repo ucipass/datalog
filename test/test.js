@@ -10,7 +10,7 @@ const readdir = util.promisify(fs.readdir)
 const setTimeoutPromise = util.promisify(setTimeout);
 const json2csv = require('json2csv').parse;
 
-describe.skip("Logging Tests" , ()=>{
+describe("Logging Tests" , ()=>{
     before("Not Used", ()=>{
     })
 
@@ -165,10 +165,8 @@ describe.skip("Logging Tests" , ()=>{
 })
 describe.only("24 hours Logging Tests" , ()=>{
     before("Not Used", async ()=>{
-
     })
-
-    it.only("24 Hours", async ()=>{
+    it("24 Hours", async ()=>{
         let f1 = await new File("template_24_hour_min.txt")
         await f1.read()
         await f1.write("test2_24_hour_min.log");
@@ -222,5 +220,30 @@ describe.only("24 hours Logging Tests" , ()=>{
         let format = chart.logDay.format
         assert.equal( lastDay.label , origtime.clone().add(1,'days').format(format), "Last Day mismatch")
         assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
+    })
+    it("24 Hours", async ()=>{
+        let f1 = await new File("template_24_hour_min.txt")
+        await f1.read()
+        await f1.write("test3_24_hour_min.log");
+        f1 = await new File("template_24_hour_hour.txt")
+        await f1.read()
+        await f1.write("test3_24_hour_hour.log");
+        f1 =await new File("template_24_hour_day.txt")
+        await f1.read()
+        await f1.write("test3_24_hour_day.log");
+        f1 = await new File("template_24_hour_week.txt")
+        await f1.read()
+        await f1.write("test3_24_hour_week.log");
+        let chart = new datalog("test3_24_hour")
+        await chart.logMin.startFileLog()
+        await chart.logHour.startFileLog()
+        await chart.logDay.startFileLog()
+        await chart.logWeek.startFileLog()
+        let testchart = chart.getChartHour()
+        await chart.logMin.endFileLog()
+        await chart.logHour.endFileLog()
+        await chart.logDay.endFileLog()
+        await chart.logWeek.endFileLog()
+
     })
 })
