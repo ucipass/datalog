@@ -6,7 +6,7 @@ var File = require("ucipass-file")
 var csv = require("fast-csv");
 var moment = require("moment")
 var datalog = require("../index.js")
-const readdir = util.promisify(fs.readdir)  
+const readdir = util.promisify(fs.readdir) 
 const setTimeoutPromise = util.promisify(setTimeout);
 const json2csv = require('json2csv').parse;
 
@@ -163,7 +163,7 @@ describe("Logging Tests" , ()=>{
         assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
     })
 })
-describe.only("24 hours Logging Tests" , ()=>{
+describe("24 hours Logging Tests" , ()=>{
     before("Not Used", async ()=>{
     })
     it("24 Hours", async ()=>{

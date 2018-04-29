@@ -47,9 +47,9 @@ class History{
             let json = {
                 label: newtime.format(this.format),
                 lastTime: newtime.clone(),
-                max: newdata,
-                avg: newdata,
-                min: newdata,
+                max: parseFloat(newdata),
+                avg: parseFloat(newdata),
+                min: parseFloat(newdata),
                 count: 1
             }
             this.arrData.shift()
@@ -208,7 +208,7 @@ module.exports = class{
         let array = this.logMin.arrData
         let chart = { labels: [], series: [[],[],[]] }
         array.forEach((item,index) => {
-            chart.labels.push( item.label )
+            chart.labels.push( item.label)
             chart.series[0].push(item.max)
             chart.series[1].push(item.avg)
             chart.series[2].push(item.min)             
