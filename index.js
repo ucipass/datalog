@@ -14,13 +14,14 @@ const log = logger.loggers.get('DATALOG');
 const opts = { fields: ['max', 'avg', 'min'] }
 const transformOpts = { highWaterMark: 16384, encoding: 'utf-8' };
 const setTimeoutPromise = util.promisify(setTimeout);
+const dir = path.parse(process.mainModule.filename).dir
 
 class History{
     constructor(format,maxSize,name){
         this.format = format
         this.maxIndex = maxSize-1
         this.name = name
-        this.fileName = name ? path.join(__dirname, name+".log") : path.join( __dirname, "datalog_"+format.replace(/\W/g, '')+".log")
+        this.fileName = name ? path.join(dir, name+".log") : path.join( dir, "datalog_"+format.replace(/\W/g, '')+".log")
         this.streamLiveRead = null
         this.streamLiveWrite = null
         this.streamEndPromise = null // Promise resolved when logging is completed called by InitLogging
