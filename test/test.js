@@ -9,12 +9,12 @@ var datalog = require("../index.js")
 const readdir = util.promisify(fs.readdir) 
 const setTimeoutPromise = util.promisify(setTimeout);
 const json2csv = require('json2csv').parse;
-const dir = __dirname
+const dir = path.join(__dirname,"..")
 
 describe("Logging Tests" , ()=>{
     before("Not Used", ()=>{
         let dirs = fs.readdirSync(dir)
-        dir.forEach(file => {
+        dirs.forEach(file => {
             if (path.extname(file) == ".log"){
                 fs.unlinkSync(file)
             }
