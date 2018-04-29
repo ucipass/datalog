@@ -13,393 +13,189 @@ const readdir = util.promisify(fs.readdir)        //fs.readdir(path[, options], 
 const log = logger.loggers.get('DATALOG');
 const opts = { fields: ['max', 'avg', 'min'] }
 const transformOpts = { highWaterMark: 16384, encoding: 'utf-8' };
+const setTimeoutPromise = util.promisify(setTimeout);
+
+class History{
+    constructor(format,maxSize,name){
+        this.format = format
+        this.maxIndex = maxSize-1
+        this.name = name
+        this.fileName = name ? name+".log" : "datalog_"+format.replace(/\W/g, '')+".log"
+        this.streamLiveRead = null
+        this.streamLiveWrite = null
+        this.streamEndPromise = null // Promise resolved when logging is completed called by InitLogging
+        this.arrData = []
+        for( let i = 0 ; i < maxSize ; i++){
+            this.arrData.push( {label:null, lastTime:null, max: 0, avg:0, min:0, count:0} )
+        }
+    }
+    log(newdata,newtime){
+        let lastData = this.arrData[this.maxIndex]
+        if (newtime.isBefore(lastData.lastTime)){
+            console.log("Incoming time of log:",newtime.format(),"is before last log:",lastData.lastTime.format())
+            return false;
+        }
+        if ( lastData.label == newtime.format(this.format) ){
+            lastData.lastTime = newtime.clone()
+            if ( newdata > lastData.max ) { lastData.max = newdata}
+            if ( newdata < lastData.min ) { lastData.min = newdata}
+            lastData.avg = (lastData.avg * lastData.count + newdata) / (lastData.count + 1)
+            lastData.count += 1
+            //console.log(lastData.count)
+        }
+        else{
+            let json = {
+                label: newtime.format(this.format),
+                lastTime: newtime.clone(),
+                max: newdata,
+                avg: newdata,
+                min: newdata,
+                count: 1
+            }
+            this.arrData.shift()
+            this.arrData.push(json)
+            // Save last log that is final
+            if ( this.streamLiveWrite != null && this.arrData[this.maxIndex-1].label != null){
+                this.saveFileLog(this.arrData[this.maxIndex-1])
+            }
+        }
+    }
+    async startFileLog(){
+        let resolveEnd,rejectEnd
+        this.streamEndPromise = new Promise((res,rej)=>{resolveEnd=res;rejectEnd=rej})
+        let fileName = this.fileName
+        let arrData = this.arrData
+        let format = this.format
+        let maxIndex = this.maxIndex
+        if ( await (new File(fileName)).isFile() ){
+            let resolve,reject
+            let loadLogFilePromise = new Promise((res,rej)=>{resolve=res;reject=rej})
+            console.log("Loading existing logfile:",fileName)
+            let stream = fs.createReadStream(fileName);
+            stream.on("error", function(){
+                console.log("Error streaming from file:",fileName);
+                reject("Error streaming from file:")
+            });
+            csv
+            .fromStream(stream, {headers: true})
+            .on("data", function(data){
+                //console.log(data);
+                let json = {
+                    label: data.label,
+                    lastTime: moment(data.label,format),
+                    max: parseFloat(data.max),
+                    avg: parseFloat(data.avg),
+                    min: parseFloat(data.min),
+                    count: parseInt(data.count)
+                }
+                if ( json.label == "" || !json.lastTime.isValid() ){
+                    console.log("Invalid data from file:", fileName, JSON.stringify(json))
+                }else{
+                    let prevLogTime = moment(arrData[maxIndex].label)
+                    if ( prevLogTime.isValid() && json.lastTime.isSameOrBefore(prevLogTime)){
+                        console.log("File log entry:",json.lastTime.format(format),"is same or before last logged entry:",prevLogTime.format(format))
+                    }else{
+                        arrData.shift()
+                        arrData.push(json)                        
+                    }
+                }
+            })
+            .on("end", function(){
+                //console.log("done");
+                resolve("done")
+            })
+            .on("error", function(){
+                //console.log("Error Parsing CSV File");
+                reject("Error Parsing CSV File or program error on CSV parser")
+            });
+            await loadLogFilePromise
+            fs.appendFileSync(fileName,"\n")
+            this.streamLiveWrite = fs.createWriteStream(fileName,{flags: "a"});
+            this.streamLiveRead = csv.createWriteStream({headers: false})  
+        }
+        else{
+            console.log("Creating new logfile:",fileName)
+            this.streamLiveWrite = fs.createWriteStream(fileName,{flags: "w"});
+            this.streamLiveRead = csv.createWriteStream({headers: true})
+        }
+        this.streamLiveRead
+            .on("data", function(data){
+                //console.log(data);
+            })
+            .on("end", function(){
+                //console.log("Readstream done");
+            })
+            .on("error", function(err){
+                console.log("Readstream Error",err);
+            });
+        this.streamLiveWrite
+            .on("data", function(data){
+                //console.log(data);
+            })
+            .on("finish", function(){
+                console.log("Writestream finish", fileName);
+                resolveEnd()
+            })
+            .on("error", function(err){
+                console.log("Writestream Error",err);
+            });
+        this.streamLiveRead.pipe(this.streamLiveWrite);
+        console.log("Logging Started")
+        //return promiseEnd
+    }
+    async endFileLog(){
+        if (this.streamLiveRead != null){
+            this.streamLiveRead.end();           
+        }else{
+            console.log("no log file can't end logging")
+        }
+        return this.streamEndPromise
+    }
+    saveFileLog(json){
+        if (this.streamLiveRead != null){
+            this.streamLiveRead.write({ label: json.label, max: json.max, avg:json.avg, min:json.min, count:json.count });               
+        }else{
+            console.log("no log file can't save log")
+        }
+    }
+}
+
 
 module.exports = class{
     constructor(logname){
         this.logname = logname ? logname : "anonymous"
-        this.logFileMin = path.join(__dirname,this.logname+"_min.log")
-        this.logFileSec = path.join(__dirname,this.logname+"_sec.log")
-        
-        this.streamLiveRead = csv.createWriteStream({headers: true}),
-        this.streamLiveWrite = fs.createWriteStream(this.logFileSec);
-        this.streamLiveWrite
-            .on("finish", function(){console.log("DONE!");});
-        this.streamLiveRead.pipe(this.streamLiveWrite);
-        
-        this.streamMinRead = csv.createWriteStream({headers: true}),
-        this.streamMinWrite = fs.createWriteStream(this.logFileMin);
-        this.streamMinWrite
-            .on("finish", function(){console.log("DONE!");});
-        this.streamMinRead.pipe(this.streamMinWrite);
-        
-        this.chartSize = 60
-        this.dataLast = null
-        this.timeLast = null
-        this.timeLive = null
-        this.formatSec = "YYYY-MM-DD HH:mm:ss"
-        this.formatMin = "YYYY-MM-DD HH:mm:00"
-        this.formatHour = "YYYY-MM-DD HH"
-        this.formatDay = "YYYY-MM-DD ddd"
-        this.formatWeek = "YYYY-ww"
-        this.chartLive = []
-        this.chartSecond = {
-            labels:[],
-            series:[[],[],[]]
-        }
-        this.chartMinute = {
-            labels:[],
-            series:[[],[],[]]
-        }
-        this.chartHour = {
-            labels:[],
-            series:[[],[],[]]
-        }
-        this.chartDay = {
-            labels:[],
-            series:[[],[],[]]
-        }
-        this.chartWeek = {
-            labels:[],
-            series:[[],[],[]]
-        }
-        for( let i=0 ; i < this.chartSize ; i++){
-            this.chartSecond.labels.push("")
-            this.chartSecond.series[0].push(0)
-            this.chartSecond.series[1].push(0)
-            this.chartSecond.series[2].push(0)
-            this.chartMinute.labels.push("")
-            this.chartMinute.series[0].push(0)
-            this.chartMinute.series[1].push(0)
-            this.chartMinute.series[2].push(0)
-            this.chartHour.labels.push("")
-            this.chartHour.series[0].push(0)
-            this.chartHour.series[1].push(0)
-            this.chartHour.series[2].push(0)
-            this.chartDay.labels.push("")
-            this.chartDay.series[0].push(0)
-            this.chartDay.series[1].push(0)
-            this.chartDay.series[2].push(0)
-            this.chartWeek.labels.push("")
-            this.chartWeek.series[0].push(0)
-            this.chartWeek.series[1].push(0)
-            this.chartWeek.series[2].push(0)
-        }
-        this.test = 1
-    }
-
-    async saveMinutes(){
-        let json = {
-            label: this.getChartMinTime(59),
-            max: this.getChartMinData(59)[0],
-            avg: this.getChartMinData(59)[1],
-            min: this.getChartMinData(59)[2]
-        }
-
-        return true
-    }
-    name(data){
-        return this.logname
-    }
-
-    logLive(){
-        let count = 0
-        let sum = 0
-        let avg = 0
-        let max = null
-        let min = null
-        this.chartLive.forEach((d,index)=>{
-            let data = d[0]
-            count += 1
-            sum += data
-            avg = sum/count
-            if (max == null || data > max){
-                max = data
-            }
-            if (min == null || data < min){
-                min = data
-            }
-        })
-        this.chartSecond.labels[this.chartSize-1] = this.timeLive.format(this.formatSec)
-        this.chartSecond.series[0][this.chartSize-1] = max
-        this.chartSecond.series[1][this.chartSize-1] = avg
-        this.chartSecond.series[2][this.chartSize-1] = min
-    }
-
-    logSeconds(){
-        let count = 0
-        let sum = 0
-        let avg = 0
-        let max = null
-        let min = null
-        this.chartLive.forEach((d,index)=>{
-            let data = d[0]
-            count += 1
-            sum += data
-            avg = sum/count
-            if (max == null || data > max){
-                max = data
-            }
-            if (min == null || data < min){
-                min = data
-            }
-        })
-        this.chartSecond.labels.push( this.timeLive.format(this.formatSec))
-        this.chartSecond.series[0].push(max)
-        this.chartSecond.series[1].push(avg)
-        this.chartSecond.series[2].push(min)
-        this.chartSecond.labels.shift()
-        this.chartSecond.series[0].shift()
-        this.chartSecond.series[1].shift()
-        this.chartSecond.series[2].shift()
-    }
-    
-    logMinutes(){
-        let max = null
-        let min = null
-        let sum = 0
-        let count = 0
-        let length = this.chartSecond.labels.length
-        let fromChart = this.chartSecond
-        let toChart = this.chartMinute
-        let ltime = this.timeLast.format(this.formatMin)
-        for (let i = length-1 ; i>= 0 ; i--){
-            let ctime = moment(fromChart.labels[i],this.formatSec).format(this.formatMin)
-            let cdataMax = fromChart.series[0][i]
-            let cdataAvg = fromChart.series[1][i]
-            let cdataMin = fromChart.series[2][i]
-            if ( ctime == ltime ){
-                count += 1
-                sum += cdataAvg
-                if(max == null || cdataMax > max){
-                    max = cdataMax
-                }
-                if(min == null || cdataMin < min){
-                    min = cdataMin
-                }
-            }
-        }
-        if (count < 1) {
-            return false;
-        }
-        let avg = sum/count
-        this.streamMinRead.write({label: ltime, max: max, avg: avg, min: min});
-        toChart.labels.shift()
-        toChart.series[0].shift()
-        toChart.series[1].shift()
-        toChart.series[2].shift()
-        toChart.labels.push(ltime)
-        toChart.series[0].push(max)
-        toChart.series[1].push(avg)
-        toChart.series[2].push(min)
-        return true
-    }
-
-    logHours(){
-        let max = null
-        let min = null
-        let sum = 0
-        let count = 0
-        let length = this.chartMinute.labels.length
-        let fromChart = this.chartMinute
-        let toChart = this.chartHour
-        let ltime = this.timeLast.format(this.formatHour)
-        for (let i = length-1 ; i>= 0 ; i--){
-            let ctime = moment(fromChart.labels[i],this.formatMin).format(this.formatHour)
-            let cdataMax = fromChart.series[0][i]
-            let cdataAvg = fromChart.series[1][i]
-            let cdataMin = fromChart.series[2][i]
-            if ( ctime == ltime ){
-                count += 1
-                sum += cdataAvg
-                if(max == null || cdataMax > max){
-                    max = cdataMax
-                }
-                if(min == null || cdataMin < min){
-                    min = cdataMin
-                }
-            }
-        }
-        if (count < 1) {
-            return false;
-        }
-        let avg = sum/count
-        toChart.labels.shift()
-        toChart.series[0].shift()
-        toChart.series[1].shift()
-        toChart.series[2].shift()
-        toChart.labels.push(ltime)
-        toChart.series[0].push(max)
-        toChart.series[1].push(avg)
-        toChart.series[2].push(min)
-        return true
-    }
-
-    logDays(){
-        let max = null
-        let min = null
-        let sum = 0
-        let count = 0
-        let length = this.chartHour.labels.length
-        let fromChart = this.chartHour
-        let toChart = this.chartDay
-        let ltime = this.timeLast.format(this.formatDay)
-        for (let i = length-1 ; i>= 0 ; i--){
-            let ctime = moment(fromChart.labels[i],this.formatHour).format(this.formatDay)
-            let cdataMax = fromChart.series[0][i]
-            let cdataAvg = fromChart.series[1][i]
-            let cdataMin = fromChart.series[2][i]
-            if ( ctime == ltime ){
-                count += 1
-                sum += cdataAvg
-                if(max == null || cdataMax > max){
-                    max = cdataMax
-                }
-                if(min == null || cdataMin < min){
-                    min = cdataMin
-                }
-            }
-        }
-        if (count < 1) {
-            return false;
-        }
-        let avg = sum/count
-        toChart.labels.shift()
-        toChart.series[0].shift()
-        toChart.series[1].shift()
-        toChart.series[2].shift()
-        toChart.labels.push(ltime)
-        toChart.series[0].push(max)
-        toChart.series[1].push(avg)
-        toChart.series[2].push(min)
-        return true
-    }
-
-    logWeeks(){
-        let max = null
-        let min = null
-        let sum = 0
-        let count = 0
-        let length = this.chartHour.labels.length
-        let fromChart = this.chartHour
-        let toChart = this.chartDay
-        let ltime = this.timeLast.format(this.formatDay)
-        for (let i = length-1 ; i>= 0 ; i--){
-            let ctime = moment(fromChart.labels[i],this.formatHour).format(this.formatDay)
-            let cdataMax = fromChart.series[0][i]
-            let cdataAvg = fromChart.series[1][i]
-            let cdataMin = fromChart.series[2][i]
-            if ( ctime == ltime ){
-                count += 1
-                sum += cdataAvg
-                if(max == null || cdataMax > max){
-                    max = cdataMax
-                }
-                if(min == null || cdataMin < min){
-                    min = cdataMin
-                }
-            }
-        }
-        if (count < 1) {
-            return false;
-        }
-        let avg = sum/count
-        toChart.labels.shift()
-        toChart.series[0].shift()
-        toChart.series[1].shift()
-        toChart.series[2].shift()
-        toChart.labels.push(ltime)
-        toChart.series[0].push(max)
-        toChart.series[1].push(avg)
-        toChart.series[2].push(min)
-        return true
+        this.logSec = new History("YYYY-MM-DD HH:mm:ss",60,this.logname+"_sec")
+        this.logMin = new History("YYYY-MM-DD HH:mm:00",60,this.logname+"_min")
+        this.logHour = new History("YYYY-MM-DD HH:00:00",60,this.logname+"_hour")
+        this.logDay = new History("YYYY-MM-DD ddd",60,this.logname+"_day")
+        this.logWeek = new History("YYYY wo [week]",60,this.logname+"_week")
     }
 
     log(input,timeLive){
         this.timeLive = timeLive
-        let data = parseFloat(input)
-        this.streamLiveRead.write({label: timeLive.format(), data: data});
-        if(this.dataLast === null) { //This only runs when the first data is logged
-            this.dataLast = data
-            this.timeLast = timeLive.clone()
-        }
-        if(timeLive.isBefore(this.timeLast)){
-            console.log("Incoming time of data is before last data. Discarding...")
-            return(false)
-        }
-
-        if (this.timeLast.format(this.formatSec) == timeLive.format(this.formatSec)){
-            this.chartLive.push([data,timeLive.format(this.formatSec)])
-            this.logLive()
-        }
-        else{
-            if (this.timeLast.format(this.formatMin) != timeLive.format(this.formatMin)){
-                this.logMinutes()
-                this.saveMinutes()
-            }
-            if (this.timeLast.format(this.formatHour) != timeLive.format(this.formatHour)){
-                this.logHours()
-            }
-            if (this.timeLast.format(this.formatDay) != timeLive.format(this.formatDay)){
-                this.logDays()
-            }
-            if (this.timeLast.format(this.formatWeek) != timeLive.format(this.formatWeek)){
-                this.logWeeks()
-            }
-            this.chartLive=[]
-            this.chartLive.push([data,timeLive.format(this.formatSec)])
-            this.logSeconds(timeLive)
-        }
-        this.timeLast = timeLive.clone()
-        this.dataLast = data
-        return true
+        this.data = parseFloat(input)
+        this.logSec.log(input,timeLive)
+        this.logMin.log(input,timeLive)
+        this.logHour.log(input,timeLive)
+        this.logDay.log(input,timeLive)
+        this.logWeek.log(input,timeLive)
     }
 
+    getSec(){ return this.logSec }
+    getMin(){ return this.logMin }
+    getHour(){ return this.logHour }
+    getDay(){ return this.logDay }
+    getWeek(){ return this.logWeek }
 
-    getChartSecData(index){
-        return([ this.chartSecond.series[0][index], this.chartSecond.series[1][index], this.chartSecond.series[2][index] ])
-    }
-    getChartMinData(index){
-        return([this.chartMinute.series[0][index],this.chartMinute.series[1][index],this.chartMinute.series[2][index]])
-    }
-    getChartHourData(index){
-        return([this.chartHour.series[0][index],this.chartHour.series[1][index],this.chartHour.series[2][index]])
-    }
-    getChartDayData(index){
-        return([this.chartDay.series[0][index],this.chartDay.series[1][index],this.chartDay.series[2][index]])
-    }
-    getChartWeekData(index){
-        return([this.chartDay.series[0][index],this.chartDay.series[1][index],this.chartDay.series[2][index]])
-    }
-    getChartSecTime(index){
-        return(this.chartSecond.labels[index])
-    }
-    getChartMinTime(index){
-        return(this.chartMinute.labels[index])
-    }
-    getChartHourTime(index){
-        return(this.chartHour.labels[index])
-    }
-    getChartDayTime(index){
-        return(this.chartDay.labels[index])
-    }
-    getChartWeekTime(index){
-        return(this.chartWeek.labels[index])
-    }
-
-    getChartSecond(){ return this.chartSecond   }
-    getChartMinute(){ return this.chartMinute  }
-    getChartHour(){ return this.chartHour  }
-    getChartDay(){ return this.chartDay  }
-    getChartWeek(){ return this.chartWeek  }
-
+    getLastSec(){ return this.logSec.arrData[this.logSec.maxIndex] }
+    getLastMin(){ return this.logMin.arrData[this.logMin.maxIndex] }
+    getLastHour(){ return this.logHour.arrData[this.logHour.maxIndex] }
+    getLastDay(){ return this.logDay.arrData[this.logDay.maxIndex] }
+    getLastWeek(){ return this.logWeek.arrData[this.logWeek.maxIndex] }
 }
 
 if (require.main == module){
     console.log("called directly")
-    let m = module.exports
-    let j = new m("maintest")
-
-    j.log(1,moment())
-    j.log(2,moment().add(2,"hours"))
-    j.log(3,moment().add(4,"hours"))
+    let myClass = module.exports
+    let instance = new MyClass("maintest")
 }

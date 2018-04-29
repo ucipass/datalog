@@ -2,256 +2,225 @@ var assert = require("assert")
 var fs = require("fs")
 var path = require("path")
 var util = require("util")
+var File = require("ucipass-file")
+var csv = require("fast-csv");
 var moment = require("moment")
 var datalog = require("../index.js")
 const readdir = util.promisify(fs.readdir)  
 const setTimeoutPromise = util.promisify(setTimeout);
-var data = []  // 60 seconds of data [1,3,5,119] averaging 60
 const json2csv = require('json2csv').parse;
 
-describe("Logging Tests" , ()=>{
-    before("Setup Test Directory", async ()=>{
-        for(let i=1; i<=60 ; i++){
-            data.push(i*2-1)
-        }
+describe.skip("Logging Tests" , ()=>{
+    before("Not Used", ()=>{
     })
 
-    it("single data test", (done)=>{
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 0
-        let timeLive = moment("2000-01-01T01:00:00")
-
-        d.log(1,timeLive)
-        assert.equal(d.getChartSecTime(59),"2000-01-01 01:00:00")
-        assert.equal(d.getChartSecTime(58),"")
+    it("Simple Test", (done)=>{
         done()
     })
-    it("3 data same time different average", (done)=>{
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 0
-        let timeLive = moment("2000-01-01T01:00:00")
+    it("Random Test no.1 ", ()=>{
+        let chart = new datalog("Basement")
+        let sec = 0
+        let min = 0  //60
+        let hour = 0 //3600
+        let day = 0 // 86400
+        let time = moment("2018-04-01 22:58:58")
+        let origtime = time.clone()
+        let newtime = null
+        let lastTimeLogged = ""
+        chart.log(101,time)
+        chart.log(99,time.add(1,"second"))
 
-        d.log(1,timeLive)
-        d.log(2,timeLive)
-        d.log(3,timeLive)
-        assert.equal(d.getChartSecTime(59),"2000-01-01 01:00:00")
-        assert.equal(d.getChartSecData(59)[0],3)
-        assert.equal(d.getChartSecData(59)[1],2)
-        assert.equal(d.getChartSecData(59)[2],1)
-        assert.equal(d.getChartSecTime(58),"")
-        assert.equal(d.getChartSecData(58)[0],0)
-        assert.equal(d.getChartSecData(58)[1],0)
-        assert.equal(d.getChartSecData(58)[2],0)
-        done()
+        assert.equal( chart.getLastMin().max , 101)
+        assert.equal( chart.getLastMin().min , 99)
+        assert.equal( chart.getLastMin().avg , 100)
+
+        time = moment("2018-04-01 22:59:58")
+        chart.log(100,time)
+        chart.log(100,time.add(1,"second"))
+        assert.equal( chart.getLastMin().max , 100)
+        assert.equal( chart.getLastMin().min , 100)
+        assert.equal( chart.getLastMin().avg , 100)
+        assert.equal( chart.getLastHour().max , 101)
+        assert.equal( chart.getLastHour().min , 99)
+        assert.equal( chart.getLastHour().avg , 100)
+        assert.equal( chart.getLastDay().max , 101)
+        assert.equal( chart.getLastDay().min , 99)
+        assert.equal( chart.getLastDay().avg , 100)
+
+
+        time = moment("2018-04-01 23:00:00")
+        chart.log(110,time)
+        chart.log(90,time.add(1,"second"))
+        assert.equal( chart.getLastMin().max , 110)
+        assert.equal( chart.getLastMin().min , 90)
+        assert.equal( chart.getLastMin().avg , 100)
+        assert.equal( chart.getLastHour().max , 110)
+        assert.equal( chart.getLastHour().min , 90)
+        assert.equal( chart.getLastHour().avg , 100)
+        assert.equal( chart.getLastDay().max , 110)
+        assert.equal( chart.getLastDay().min , 90)
+        assert.equal( chart.getLastDay().avg , 100)
+
+        time = moment("2018-04-01 23:59:58")
+        chart.log(103,time)
+        chart.log(97,time.add(1,"second"))
+        chart.log(100,time.add(1,"second"))
+        assert.equal( chart.getLastMin().max , 100)
+        assert.equal( chart.getLastMin().min , 100)
+        assert.equal( chart.getLastMin().avg , 100)
+        assert.equal( chart.getLastHour().max , 100)
+        assert.equal( chart.getLastHour().min , 100)
+        assert.equal( chart.getLastHour().avg , 100)
+        assert.equal( chart.getLastDay().max , 100)
+        assert.equal( chart.getLastDay().min , 100)
+        assert.equal( chart.getLastDay().avg , 100)
+        assert.equal( chart.getLastWeek().max , 110)
+        assert.equal( chart.getLastWeek().min , 90)
+        assert.equal( chart.getLastWeek().avg , 100)
+
     })
-    it("6 data same 2 times different average", (done)=>{
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 0
-        let timeLive = moment("2000-01-01T01:00:00")
-        d.log(1,timeLive)
-        d.log(2,timeLive)
-        d.log(3,timeLive)
-        timeLive = moment("2000-01-01T01:00:01")
-        d.log(4,timeLive)
-        d.log(5,timeLive)
-        d.log(6,timeLive)
-        assert.equal(d.getChartSecTime(59),"2000-01-01 01:00:01") 
-        assert.equal(d.getChartSecData(59)[0],6)
-        assert.equal(d.getChartSecData(59)[1],5)
-        assert.equal(d.getChartSecData(59)[2],4)
-        assert.equal(d.getChartSecTime(58),"2000-01-01 01:00:00")
-        assert.equal(d.getChartSecData(58)[0],3)
-        assert.equal(d.getChartSecData(58)[1],2)
-        assert.equal(d.getChartSecData(58)[2],1)
-        done()
+    it("Stream File Test", async ()=>{
+        let chart = new datalog("test_save")
+        chart.logMin.startFileLog()
+        .then(async ()=>{
+            let time = moment("2000-01-01")
+            chart.log(1, time )
+            chart.log(2, time.add(1,"minutes"))
+            chart.log(3, time.add(1,"minutes"))
+            chart.log(4, time.add(1,"minutes"))
+            chart.log(5, time.add(1,"minutes"))
+            try{
+                let s = fs.readFileSync(chart.logMin.fileName,'utf8')
+                return Promise.resolve("File found")
+            }catch(e){
+                return Promise.reject("File not found")
+            }
+        })
     })
-    it("1 minute test from 0 to 59", (done)=>{
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 0
-        let timeLive = moment("2000-01-01T01:00:00")
-
-        for(let m=0 ; m <= minutes ; m++){
-            for(let i in data){
-                d.log(data[i]+m,timeLive)
-                timeLive.add(1,"seconds")
+    it("Save Load Log", async ()=>{
+        let time = moment("2000-01-01 10:00:00")
+        let mylog1 = new datalog("test_save_load")
+        await mylog1.logMin.startFileLog()
+        mylog1.log(1,time.add(10,"minute"))
+        mylog1.log(5,time.add(20,"minute"))
+        mylog1.log(10,time.add(20,"minute"))
+        mylog1.log(30,time)
+        mylog1.log(20,time)
+        mylog1.log(10,time.add(1,"minute"))
+        await mylog1.logMin.endFileLog()
+        //await setTimeoutPromise(500)
+        let mylog2 = new datalog("test_save_load")
+        await mylog2.logMin.startFileLog()
+        let last = mylog2.getLastMin()
+        assert.equal( last.max,30)
+        assert.equal( last.avg,20)
+        assert.equal( last.min,10)
+        assert.equal( last.count,3)
+        assert.equal( last.label,"2000-01-01 10:50:00")
+        await mylog2.logMin.endFileLog()
+    })
+    it("24 Hours", async ()=>{
+        let chart = new datalog("test_24_hour")
+        await chart.logMin.startFileLog()
+        await chart.logHour.startFileLog()
+        await chart.logDay.startFileLog()
+        await chart.logWeek.startFileLog()
+        let sec = 0
+        let min = 0  //60
+        let hour = 0 //3600
+        let day = 0 // 86400
+        let time = moment("2018-03-31 22:58:58")
+        let origtime = time.clone()
+        let newtime = null
+        let lastTimeLogged = ""
+        let data = 1
+        for(hour = 0 ; hour < 24 ; hour++){
+            for (min = 0 ; min <60 ; min ++){
+                for (sec = 0 ; sec<60 ; sec++){
+                    chart.log(data,time)
+                    let lastSec = chart.getLastSec()
+                    assert.ok( lastSec.max == data, "Last Second max is not equal ",data,lastSec)
+                    time.add(1,"seconds")
+                    data++
+                }
+                //console.log("Minute Passed")
+                let lastMin = chart.getLastMin()
+                let format = chart.logMin.format
+                assert.equal( lastMin.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
             }
+            //console.log("Hour Passed")
+            let lastHour = chart.getLastHour()
+            let format = chart.logHour.format
+        assert.equal( lastHour.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
         }
-
-        assert.equal(d.getChartSecTime(59),"2000-01-01 01:00:59") 
-        assert.equal(d.getChartSecData(59)[1],119)
-        assert.equal(d.getChartSecTime(58),"2000-01-01 01:00:58")
-        assert.equal(d.getChartSecData(58)[1],117)
-        done()
-    }).timeout(15000);
-    it("1 minute test from 57 to 56", (done)=>{
-
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 0
-        let timeLive = moment("2000-01-01T01:00:57")
-
-        for(let m=0 ; m <= minutes ; m++){
-            for(let i in data){
-                d.log(data[i]+m,timeLive)
-                timeLive.add(1,"seconds")
-            }
-        }
-
-        assert.equal(d.getChartSecTime(59),"2000-01-01 01:01:56") 
-        assert.equal(d.getChartSecData(59)[1],119)
-        assert.equal(d.getChartSecTime(58),"2000-01-01 01:01:55")
-        assert.equal(d.getChartSecData(58)[1],117)
-        assert.equal(d.getChartMinTime(59),"2000-01-01 01:00:00") 
-        assert.equal(d.getChartMinData(59)[0],5)
-        assert.equal(d.getChartMinData(59)[1],3)
-        assert.equal(d.getChartMinData(59)[2],1)
-        done()
-    }).timeout(15000);
-    it("2 minute test from 57 to 56", (done)=>{
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 2
-        let timeLive = moment("2000-01-01T01:00:57")
-
-        for(let m=0 ; m < minutes ; m++){
-            for(let i in data){
-                d.log(data[i]+m,timeLive)
-                timeLive.add(1,"seconds")
-            }
-        }
-
-        assert.equal(d.getChartSecTime(59),"2000-01-01 01:02:56") 
-        assert.equal(d.getChartSecData(59)[1],120)
-        assert.equal(d.getChartSecTime(58),"2000-01-01 01:02:55")
-        assert.equal(d.getChartSecData(58)[1],118)
-        assert.equal(d.getChartMinTime(59),"2000-01-01 01:01:00") 
-        assert.equal(d.getChartMinTime(58),"2000-01-01 01:00:00") 
-        assert.equal(d.getChartMinData(59)[0],119)
-        assert.equal(d.getChartMinData(59)[2],2)
-        done()
-    }).timeout(15000);
-    it("2 minute test from 00 to 59 +1", (done)=>{
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 2
-        let timeLive = moment("2000-01-01T01:00:00")
-
-        for(let m=0 ; m < minutes ; m++){
-            for(let i in data){
-                d.log(data[i]+m,timeLive)
-                timeLive.add(1,"seconds")
-            }
-        }
-        d.log(1,timeLive)
-        assert.equal(d.getChartSecTime(59),"2000-01-01 01:02:00") 
-        //assert.equal(d.getChartSecData(59)[1],120)
-        //assert.equal(d.getChartSecTime(58),"2000-01-01 01:00:59")
-        //assert.equal(d.getChartSecData(58)[1],118)
-        assert.equal(d.getChartMinTime(59),"2000-01-01 01:01:00") 
-        //assert.equal(d.getChartMinTime(58),"2000-01-01 01:00:00") 
-        assert.equal(d.getChartMinData(59)[0],120)
-        assert.equal(d.getChartMinData(59)[2],2)
-        assert.equal(d.getChartMinData(58)[0],119)
-        assert.equal(d.getChartMinData(58)[2],1)
-        done()
-    }).timeout(15000);
-    it("1 Hour test from 00 to 59+1", (done)=>{
-        let d = new datalog("Basement")
-        let c = 1
-        let minutes = 60
-        let timeLive = moment("2000-01-01T01:00:00")
-
-        for(let m=0 ; m < minutes ; m++){
-            for(let i in data){
-                d.log(data[i]+m,timeLive)
-                timeLive.add(1,"seconds")
-            }
-        }
-        d.log(1,timeLive) // extra second to turn hour
-        //assert.equal(d.getChartSecTime(59),"2000-01-01 01:02:56") 
-        //assert.equal(d.getChartSecData(59)[1],120)
-        //assert.equal(d.getChartSecTime(58),"2000-01-01 01:02:55")
-        //assert.equal(d.getChartSecData(58)[1],118)
-        //assert.equal(d.getChartMinTime(59),"2000-01-01 01:01:00") 
-        assert.equal(d.getChartMinTime(59),"2000-01-01 01:59:00") 
-        assert.equal(d.getChartHourTime(59),"2000-01-01 01") 
-        assert.equal(d.getChartMinData(0)[1],minutes)
-        assert.equal(d.getChartMinData(59)[1],2*minutes-1)
-        assert.equal(d.getChartHourData(59)[0],178)
-        assert.equal(d.getChartHourData(59)[2],1)
-        assert.equal(d.getChartHourData(59)[1],89.5)
-        done()
-    }).timeout(15000);
-    it("Final Test", (done)=>{
-        let d = new datalog("Basement")
-        let timeLive = moment("2000-01-01T01:00:00")
-
-        for(let m=1 ; m <= 86401 ; m++){
-            if (m == 5000){
-                d.log(99999,timeLive)
-                timeLive.add(1,"seconds")
-                continue
-            }
-            if (m == 5001){
-                d.log(-1,timeLive)
-                timeLive.add(1,"seconds")
-                continue
-            }
-            d.log(m,timeLive)
-            timeLive.add(1,"seconds")
-            if (m == 61){
-                assert.equal(d.getChartMinTime(59),"2000-01-01 01:00:00")
-                assert.equal(d.getChartMinData(59)[0],60)
-                assert.equal(d.getChartMinData(59)[1],30.5)
-                assert.equal(d.getChartMinData(59)[2],1)
-            }
-            if (m == 121){
-                assert.equal(d.getChartMinTime(59),"2000-01-01 01:01:00")
-                assert.equal(d.getChartMinData(59)[0],120)
-                assert.equal(d.getChartMinData(59)[1],90.5)
-                assert.equal(d.getChartMinData(59)[2],61)
-            }
-            if (m == 3601){
-                assert.equal(d.getChartMinTime(59),"2000-01-01 01:59:00")
-                assert.equal(d.getChartHourTime(59),"2000-01-01 01")
-                assert.equal(d.getChartMinData(59)[0],3600)
-                assert.equal(d.getChartMinData(59)[2],3541)
-            }
-            if (m == 86401){
-                assert.equal(d.getChartMinTime(59),"2000-01-02 00:59:00")
-                assert.equal(d.getChartHourTime(59),"2000-01-02 00")
-                assert.equal(d.getChartDayTime(59),"2000-01-01 Sat")
-                assert.equal(d.getChartDayData(59)[0],99999)
-                assert.equal(d.getChartDayData(59)[2],-1)            
-            }
-        }
-        done()
-    }).timeout(15000);
+        await chart.logMin.endFileLog()
+        await chart.logHour.endFileLog()
+        await chart.logDay.endFileLog()
+        await chart.logWeek.endFileLog()
+        let lastDay = chart.getLastDay()
+        let format = chart.logDay.format
+        assert.equal( lastDay.label , origtime.clone().add(1,'days').format(format), "Last Day mismatch")
+        assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
+    })
 })
+describe.only("24 hours Logging Tests" , ()=>{
+    before("Not Used", async ()=>{
 
-describe("File Saving Tests" , ()=>{
-    before("Setup Test Directory", async ()=>{
     })
 
-    it("Second Stream Test", async ()=>{
-        let j = new datalog("test")
-        j.log(1,moment())
-        j.log(2,moment().add(2,"minutes"))
-        j.log(3,moment().add(4,"minutes"))
-        await setTimeoutPromise(1000,"test")
-        let files = await readdir(path.join(__dirname,".."))
-        if (files.indexOf(path.basename(j.logFileSec)) >= 0){
-            let s = fs.readFileSync(j.logFileSec,'utf8')
-            return Promise.resolve("File found")
-        }else{
-            return Promise.reject("File not found")
+    it.only("24 Hours", async ()=>{
+        let f1 = await new File("template_24_hour_min.txt")
+        await f1.read()
+        await f1.write("test2_24_hour_min.log");
+        f1 = await new File("template_24_hour_hour.txt")
+        await f1.read()
+        await f1.write("test2_24_hour_hour.log");
+        f1 =await new File("template_24_hour_day.txt")
+        await f1.read()
+        await f1.write("test2_24_hour_day.log");
+        f1 = await new File("template_24_hour_week.txt")
+        await f1.read()
+        await f1.write("test2_24_hour_week.log");
+        let chart = new datalog("test2_24_hour")
+        await chart.logMin.startFileLog()
+        await chart.logHour.startFileLog()
+        await chart.logDay.startFileLog()
+        await chart.logWeek.startFileLog()
+        let sec = 0
+        let min = 0  //60
+        let hour = 0 //3600
+        let day = 0 // 86400
+        let time = moment("2018-04-01 23:58:58")
+        let origtime = time.clone()
+        let newtime = null
+        let lastTimeLogged = ""
+        let data = 1
+        for(hour = 0 ; hour < 24 ; hour++){
+            for (min = 0 ; min <60 ; min ++){
+                for (sec = 0 ; sec<60 ; sec++){
+                    chart.log(data,time)
+                    let lastSec = chart.getLastSec()
+                    assert.ok( lastSec.max == data, "Last Second max is not equal ",data,lastSec)
+                    time.add(1,"seconds")
+                    data++
+                }
+                //console.log("Minute Passed")
+                let lastMin = chart.getLastMin()
+                let format = chart.logMin.format
+                assert.equal( lastMin.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
+            }
+            //console.log("Hour Passed")
+            let lastHour = chart.getLastHour()
+            let format = chart.logHour.format
+        assert.equal( lastHour.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
         }
-    })
-    it("Stream Test2", async ()=>{
-        return Promise.resolve("File found")
+        await chart.logMin.endFileLog()
+        await chart.logHour.endFileLog()
+        await chart.logDay.endFileLog()
+        await chart.logWeek.endFileLog()
+        let lastDay = chart.getLastDay()
+        let format = chart.logDay.format
+        assert.equal( lastDay.label , origtime.clone().add(1,'days').format(format), "Last Day mismatch")
+        assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
     })
 })
