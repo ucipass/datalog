@@ -20,7 +20,7 @@ class History{
         this.format = format
         this.maxIndex = maxSize-1
         this.name = name
-        this.fileName = name ? name+".log" : "datalog_"+format.replace(/\W/g, '')+".log"
+        this.fileName = name ? path.join(__dirname, name+".log") : path.join( __dirname, "datalog_"+format.replace(/\W/g, '')+".log")
         this.streamLiveRead = null
         this.streamLiveWrite = null
         this.streamEndPromise = null // Promise resolved when logging is completed called by InitLogging
@@ -60,6 +60,71 @@ class History{
             }
         }
     }
+    async checkOrMoveFileLog(){
+        let resolveEnd,rejectEnd
+        let p = new Promise((res,rej)=>{resolveEnd=res;rejectEnd=rej})
+        let fileName = this.fileName
+        let arrData = []
+        let format = this.format
+        let maxIndex = this.maxIndex
+        let file = new File (fileName)
+        if (! await file.isFile()){
+            return
+        }
+        console.log("Checking existing logfile:",fileName)
+        let stream = fs.createReadStream(fileName);
+        stream.on("error", function(){
+            console.log("Error streaming from file:",fileName);
+            process.exit()
+        });
+        csv
+        .fromStream(stream, {headers: true})
+        .on("data", function(data){
+            //console.log(data);
+            try{
+            let json = {
+                label: data.label,
+                lastTime: moment(data.label,format),
+                max: parseFloat(data.max),
+                avg: parseFloat(data.avg),
+                min: parseFloat(data.min),
+                count: parseInt(data.count)
+            }
+            if ( json.label == "" || !json.lastTime.isValid() ){
+                console.log("Invalid data from file:", fileName, JSON.stringify(json))
+            }else{
+                arrData.shift()
+                arrData.push(json)                        
+                }
+            }catch(e){ console.log("Error on data processing",e)}
+        })
+        .on("end", function(){
+            //console.log("done");
+            if (arrData.length <1){
+                console.log("No data in log file. Deleting..")
+                try{
+                    let newFileName = fileName+"_err_"+moment().format("YYMMDD-mmhhA")+".log"
+                    fs.renameSync(fileName, newFileName)
+                    fs.appendFileSync(newFileName, "\n no data to process")
+                }catch(e){console.log(e);process.exit()}
+                resolveEnd()
+                return
+            }
+            resolveEnd()
+            return
+        })
+        .on("error", function(err){
+            console.log("Error Parsing CSV File creating new file",err);
+            try{
+                let newFileName = fileName+"_err_"+moment().format("YYMMDD-mmhhA")+".log"
+                fs.renameSync(fileName, newFileName)
+                fs.appendFileSync(newFileName, "\n"+err.toString())
+            }catch(e){console.log(e);process.exit()}
+            resolveEnd()
+            return
+        });
+        return p      
+    }
     async startFileLog(){
         let resolveEnd,rejectEnd
         this.streamEndPromise = new Promise((res,rej)=>{resolveEnd=res;rejectEnd=rej})
@@ -67,6 +132,7 @@ class History{
         let arrData = this.arrData
         let format = this.format
         let maxIndex = this.maxIndex
+        await this.checkOrMoveFileLog()
         if ( await (new File(fileName)).isFile() ){
             let resolve,reject
             let loadLogFilePromise = new Promise((res,rej)=>{resolve=res;reject=rej})
@@ -160,8 +226,7 @@ class History{
     }
 }
 
-
-module.exports = class{
+class Chart{
     constructor(logname){
         this.logname = logname ? logname : "anonymous"
         this.logSec = new History("YYYY-MM-DD HH:mm:ss",60,this.logname+"_sec")
@@ -249,6 +314,8 @@ module.exports = class{
         return chart;
     }
 }
+
+module.exports = Chart
 
 if (require.main == module){
     console.log("called directly")

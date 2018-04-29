@@ -9,11 +9,17 @@ var datalog = require("../index.js")
 const readdir = util.promisify(fs.readdir) 
 const setTimeoutPromise = util.promisify(setTimeout);
 const json2csv = require('json2csv').parse;
+const dir = __dirname
 
 describe("Logging Tests" , ()=>{
     before("Not Used", ()=>{
+        let dirs = fs.readdirSync(dir)
+        dir.forEach(file => {
+            if (path.extname(file) == ".log"){
+                fs.unlinkSync(file)
+            }
+        });
     })
-
     it("Simple Test", (done)=>{
         done()
     })
@@ -81,33 +87,39 @@ describe("Logging Tests" , ()=>{
     })
     it("Stream File Test", async ()=>{
         let chart = new datalog("test_save")
-        chart.logMin.startFileLog()
-        .then(async ()=>{
-            let time = moment("2000-01-01")
-            chart.log(1, time )
-            chart.log(2, time.add(1,"minutes"))
-            chart.log(3, time.add(1,"minutes"))
-            chart.log(4, time.add(1,"minutes"))
-            chart.log(5, time.add(1,"minutes"))
-            try{
-                let s = fs.readFileSync(chart.logMin.fileName,'utf8')
-                return Promise.resolve("File found")
-            }catch(e){
-                return Promise.reject("File not found")
-            }
-        })
+        await chart.logMin.startFileLog()
+        let time = moment("2000-01-01")
+        chart.log(1, time )
+        chart.log(2, time.add(1,"minutes"))
+        chart.log(3, time.add(1,"minutes"))
+        chart.log(4, time.add(1,"minutes"))
+        chart.log(5, time.add(1,"minutes"))
+        try{
+            let s = fs.readFileSync(chart.logMin.fileName,'utf8')
+            return Promise.resolve("File found")
+        }catch(e){
+            return Promise.reject("File not found")
+        }
     })
     it("Save Load Log", async ()=>{
         let time = moment("2000-01-01 10:00:00")
         let mylog1 = new datalog("test_save_load")
+        await mylog1.logSec.startFileLog()
         await mylog1.logMin.startFileLog()
+        await mylog1.logHour.startFileLog()
+        await mylog1.logDay.startFileLog()
+        await mylog1.logWeek.startFileLog()
         mylog1.log(1,time.add(10,"minute"))
         mylog1.log(5,time.add(20,"minute"))
         mylog1.log(10,time.add(20,"minute"))
         mylog1.log(30,time)
         mylog1.log(20,time)
         mylog1.log(10,time.add(1,"minute"))
+        await mylog1.logSec.endFileLog()
         await mylog1.logMin.endFileLog()
+        await mylog1.logHour.endFileLog()
+        await mylog1.logDay.endFileLog()
+        await mylog1.logWeek.endFileLog()
         //await setTimeoutPromise(500)
         let mylog2 = new datalog("test_save_load")
         await mylog2.logMin.startFileLog()
@@ -119,7 +131,12 @@ describe("Logging Tests" , ()=>{
         assert.equal( last.label,"2000-01-01 10:50:00")
         await mylog2.logMin.endFileLog()
     })
-    it("24 Hours", async ()=>{
+
+})
+describe("24 hours Logging Tests" , ()=>{
+    before("Not Used", async ()=>{
+    })
+    it("24 Hours test1", async ()=>{
         let chart = new datalog("test_24_hour")
         await chart.logMin.startFileLog()
         await chart.logHour.startFileLog()
@@ -162,11 +179,7 @@ describe("Logging Tests" , ()=>{
         assert.equal( lastDay.label , origtime.clone().add(1,'days').format(format), "Last Day mismatch")
         assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
     })
-})
-describe("24 hours Logging Tests" , ()=>{
-    before("Not Used", async ()=>{
-    })
-    it("24 Hours", async ()=>{
+    it("24 Hours test2", async ()=>{
         let f1 = await new File("template_24_hour_min.txt")
         await f1.read()
         await f1.write("test2_24_hour_min.log");
@@ -221,7 +234,7 @@ describe("24 hours Logging Tests" , ()=>{
         assert.equal( lastDay.label , origtime.clone().add(1,'days').format(format), "Last Day mismatch")
         assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
     })
-    it("24 Hours", async ()=>{
+    it("24 Hours test3", async ()=>{
         let f1 = await new File("template_24_hour_min.txt")
         await f1.read()
         await f1.write("test3_24_hour_min.log");
