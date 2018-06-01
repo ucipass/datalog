@@ -20,6 +20,7 @@
     "mocha": "^5.1.1"
   },
   "dependencies": {
+    "app-root-path": "^2.0.1",
     "fast-csv": "^2.4.1",
     "json2csv": "^4.1.2",
     "moment": "^2.22.1",

@@ -9,7 +9,8 @@ var datalog = require("../index.js")
 const readdir = util.promisify(fs.readdir) 
 const setTimeoutPromise = util.promisify(setTimeout);
 const json2csv = require('json2csv').parse;
-const dir = path.join(__dirname,"..")
+const appRoot = require("app-root-path").path
+const dir = path.join(appRoot)
 
 describe("Logging Tests" , ()=>{
     before("Not Used", ()=>{
