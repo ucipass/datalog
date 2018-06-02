@@ -1,2 +1,0 @@
-label,max,avg,min,count
-2018-03-31 Sat,3662,1831.5,1,3662

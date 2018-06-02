@@ -1,2 +1,0 @@
-label,max,avg,min,count
-2018 13th week,3662,1831.5,1,3662

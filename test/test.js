@@ -1,263 +1,186 @@
-var assert = require("assert")
-var fs = require("fs")
-var path = require("path")
+var chai = require('chai');  
+var assert = chai.assert;    // Using Assert style
+var expect = chai.expect;    // Using Expect style
+var should = chai.should();  // Using Should style
+const fs = require("fs")
+const path = require("path")
+const appRoot = require("app-root-path").path
 var util = require("util")
 var File = require("ucipass-file")
-var csv = require("fast-csv");
 var moment = require("moment")
-var datalog = require("../index.js")
+var Datalog = require("../index.js")
 const readdir = util.promisify(fs.readdir) 
 const setTimeoutPromise = util.promisify(setTimeout);
-const json2csv = require('json2csv').parse;
-const appRoot = require("app-root-path").path
 const dir = path.join(appRoot)
+const winston = require("winston")
+const _ = require("lodash")
 
-describe("Logging Tests" , ()=>{
-    before("Not Used", ()=>{
-        let dirs = fs.readdirSync(dir)
-        dirs.forEach(file => {
-            if (path.extname(file) == ".log"){
-                fs.unlinkSync(file)
-            }
-        });
+describe("Quick Utility Tests" , ()=>{
+    it("Quicktest lodash defaults", ()=>{
+        var json1 = { a:1,b:2,c:3}
+        var json2 = { a:11,b:11,c:11}
+        assert.equal( json1, _.defaults(json1,json2))
     })
-    it("Simple Test", (done)=>{
-        done()
+    it("Quicktest Array", ()=>{
+        var arr = new Array(5).fill({a:1,b:2})
+        assert.equal( arr.length, 5)
     })
-    it("Random Test no.1 ", ()=>{
-        let chart = new datalog("Basement")
-        let sec = 0
-        let min = 0  //60
-        let hour = 0 //3600
-        let day = 0 // 86400
-        let time = moment("2018-04-01 22:58:58")
-        let origtime = time.clone()
-        let newtime = null
-        let lastTimeLogged = ""
-        chart.log(101,time)
-        chart.log(99,time.add(1,"second"))
-
-        assert.equal( chart.getLastMin().max , 101)
-        assert.equal( chart.getLastMin().min , 99)
-        assert.equal( chart.getLastMin().avg , 100)
-
-        time = moment("2018-04-01 22:59:58")
-        chart.log(100,time)
-        chart.log(100,time.add(1,"second"))
-        assert.equal( chart.getLastMin().max , 100)
-        assert.equal( chart.getLastMin().min , 100)
-        assert.equal( chart.getLastMin().avg , 100)
-        assert.equal( chart.getLastHour().max , 101)
-        assert.equal( chart.getLastHour().min , 99)
-        assert.equal( chart.getLastHour().avg , 100)
-        assert.equal( chart.getLastDay().max , 101)
-        assert.equal( chart.getLastDay().min , 99)
-        assert.equal( chart.getLastDay().avg , 100)
-
-
-        time = moment("2018-04-01 23:00:00")
-        chart.log(110,time)
-        chart.log(90,time.add(1,"second"))
-        assert.equal( chart.getLastMin().max , 110)
-        assert.equal( chart.getLastMin().min , 90)
-        assert.equal( chart.getLastMin().avg , 100)
-        assert.equal( chart.getLastHour().max , 110)
-        assert.equal( chart.getLastHour().min , 90)
-        assert.equal( chart.getLastHour().avg , 100)
-        assert.equal( chart.getLastDay().max , 110)
-        assert.equal( chart.getLastDay().min , 90)
-        assert.equal( chart.getLastDay().avg , 100)
-
-        time = moment("2018-04-01 23:59:58")
-        chart.log(103,time)
-        chart.log(97,time.add(1,"second"))
-        chart.log(100,time.add(1,"second"))
-        assert.equal( chart.getLastMin().max , 100)
-        assert.equal( chart.getLastMin().min , 100)
-        assert.equal( chart.getLastMin().avg , 100)
-        assert.equal( chart.getLastHour().max , 100)
-        assert.equal( chart.getLastHour().min , 100)
-        assert.equal( chart.getLastHour().avg , 100)
-        assert.equal( chart.getLastDay().max , 100)
-        assert.equal( chart.getLastDay().min , 100)
-        assert.equal( chart.getLastDay().avg , 100)
-        assert.equal( chart.getLastWeek().max , 110)
-        assert.equal( chart.getLastWeek().min , 90)
-        assert.equal( chart.getLastWeek().avg , 100)
-
+    it("Quicktest Terniary Function", ()=>{
+        var test = 
+            false ? 1 :
+            false ? 2 :
+            false ? 3 : 
+            4
+        assert.equal( 4, test)
     })
-    it("Stream File Test", async ()=>{
-        let chart = new datalog("test_save")
-        await chart.logMin.startFileLog()
-        let time = moment("2000-01-01")
-        chart.log(1, time )
-        chart.log(2, time.add(1,"minutes"))
-        chart.log(3, time.add(1,"minutes"))
-        chart.log(4, time.add(1,"minutes"))
-        chart.log(5, time.add(1,"minutes"))
-        try{
-            let s = fs.readFileSync(chart.logMin.fileName,'utf8')
-            return Promise.resolve("File found")
-        }catch(e){
-            return Promise.reject("File not found")
+    it("Quicktest Moment.js", ()=>{
+        let time1 = moment("2000-10-10 10:00:00")
+        let time2 = moment("2000-10-10 10:00:00","YYYY-MM-DD HH:mm:ss")
+        expect(time1)         .to.deep.not.equal(time2)
+        expect(time1.format()).to.deep    .equal(time2.format())
+    })
+})
+
+describe("Datalog Main Logging Test" , async ()=>{
+    it("Combined Test 10x sec,min,hour,day,week", async ()=>{
+        let logdir = path.join(appRoot,"log")
+        let name = "testcombi"
+        fs.readdirSync(logdir).forEach((file)=>{
+            if( file.startsWith("datalog_testcombi")) fs.unlinkSync(path.join(logdir, file))
+        })
+        let logSec = new Datalog({format:"seconds",name:"testcombi"})
+        let logMin = new Datalog({format:"minutes",name:"testcombi"})
+        let logHour = new Datalog({format:"hours",name:"testcombi"})
+        let logDay = new Datalog({format:"days",name:"testcombi"})
+        let logWeek = new Datalog({format:"weeks",name:"testcombi"})
+        function log(value,time){
+            logSec.log(value,time)
+            logMin.log(value,time)
+            logHour.log(value,time)
+            logDay.log(value,time)
+            logWeek.log(value,time)
         }
+        let counter = 10
+        let time = moment("2000-01-01 10:00:00","YYYY-MM-DD HH:mm:ss")
+        for(i=1 ; i<= counter; i++){
+            log(i,time)
+            time.add(1,"seconds")
+        }
+        for(i=1 ; i<= counter; i++){
+            log(i,time)
+            time.add(1,"minutes")
+        }
+        for(i=1 ; i<= counter; i++){
+            log(i,time)
+            time.add(1,"hours")
+        }
+        for(i=1 ; i<= counter; i++){
+            log(i,time)
+            time.add(1,"days")
+        }
+        for(i=1 ; i<= counter; i++){
+            log(i,time)
+            time.add(1,"weeks")
+        }
+        await setTimeoutPromise(1000)
+        let numSec = logSec.readMemLog().filter( (item)=> item.label != null )
+        let numMin = logMin.readMemLog().filter( (item)=> item.label != null )
+        let numHour = logHour.readMemLog().filter( (item)=> item.label != null )
+        let numDay = logDay.readMemLog().filter( (item)=> item.label != null )
+        let numWeek = logWeek.readMemLog().filter( (item)=> item.label != null )
+        //expect(numSec.length).to.equal(50)
+        //expect(numMin.length).to.equal(40)
+        //expect(numHour.length).to.equal(30)
+        //expect(numDay.length).to.equal(20)
+        expect(numWeek.length).to.equal(12) // 10 Days added spanned 2 more weeks from Sat,Sun,Mon...,Sat,Sun,Mon
+        return true
     })
-    it("Save Load Log", async ()=>{
-        let time = moment("2000-01-01 10:00:00")
-        let mylog1 = new datalog("test_save_load")
-        await mylog1.logSec.startFileLog()
-        await mylog1.logMin.startFileLog()
-        await mylog1.logHour.startFileLog()
-        await mylog1.logDay.startFileLog()
-        await mylog1.logWeek.startFileLog()
-        mylog1.log(1,time.add(10,"minute"))
-        mylog1.log(5,time.add(20,"minute"))
-        mylog1.log(10,time.add(20,"minute"))
-        mylog1.log(30,time)
-        mylog1.log(20,time)
-        mylog1.log(10,time.add(1,"minute"))
-        await mylog1.logSec.endFileLog()
-        await mylog1.logMin.endFileLog()
-        await mylog1.logHour.endFileLog()
-        await mylog1.logDay.endFileLog()
-        await mylog1.logWeek.endFileLog()
-        //await setTimeoutPromise(500)
-        let mylog2 = new datalog("test_save_load")
-        await mylog2.logMin.startFileLog()
-        let last = mylog2.getLastMin()
-        assert.equal( last.max,30)
-        assert.equal( last.avg,20)
-        assert.equal( last.min,10)
-        assert.equal( last.count,3)
-        assert.equal( last.label,"2000-01-01 10:50:00")
-        await mylog2.logMin.endFileLog()
+    it("log 60x1 seconds times", async ()=>{
+        var datalog = new Datalog()
+        if(fs.existsSync(datalog.filename)) {fs.unlinkSync(datalog.filename);};
+        let counter = 61
+        let time = moment()
+        let start = moment().clone()
+        for(i=1 ; i<= counter; i++){
+            datalog.log(i,time)
+            time.add(1,"seconds")
+        }
+        await setTimeoutPromise(1000)
+        let datalog2 = new Datalog()
+        await datalog2.readFileLog()
+        let log1 = datalog.readMemLog()[58]
+        let log2 = datalog2.readMemLog()[59]
+        let result = _.isEqual(log1,log2)
+        expect(result).to.equal(true)
+    })
+    it("log 60x1 minutes times", async ()=>{
+        var datalog = new Datalog({format:"minutes"})
+        let datalog2 = new Datalog({format:"minutes"})
+        if(fs.existsSync(datalog.filename)) {fs.unlinkSync(datalog.filename);};
+        let counter = 61
+        let time = moment()
+        let start = moment().clone()
+        for(i=1 ; i<= counter; i++){
+            datalog.log(i,time)
+            time.add(1,"minutes")
+        }
+        await setTimeoutPromise(1000)
+        await datalog2.readFileLog()
+        let log1 = datalog.readMemLog()[58]
+        let log2 = datalog2.readMemLog()[59]
+        expect(log1).to.deep.equal(log2)
+    })
+    it("log 60x1 hours times", async ()=>{
+        var datalog = new Datalog({format:"hours"})
+        let datalog2 = new Datalog({format:"hours"})
+        if(fs.existsSync(datalog.filename)) {fs.unlinkSync(datalog.filename);};
+        let counter = 61
+        let time = moment()
+        let start = moment().clone()
+        for(i=1 ; i<= counter; i++){
+            datalog.log(i,time)
+            time.add(1,"hours")
+        }
+        await setTimeoutPromise(1000)
+        await datalog2.readFileLog()
+        let log1 = datalog.readMemLog()[58]
+        let log2 = datalog2.readMemLog()[59]
+        expect(log1).to.deep.equal(log2)
+    })
+    it("log 60x1 days times", async ()=>{
+        var datalog = new Datalog({format:"days"})
+        let datalog2 = new Datalog({format:"days"})
+        if(fs.existsSync(datalog.filename)) {fs.unlinkSync(datalog.filename);};
+        let counter = 61
+        let time = moment()
+        let start = moment().clone()
+        for(i=1 ; i<= counter; i++){
+            datalog.log(i,time)
+            time.add(1,"days")
+        }
+        await setTimeoutPromise(1000)
+        await datalog2.readFileLog()
+        let log1 = datalog.readMemLog()[58]
+        let log2 = datalog2.readMemLog()[59]
+        expect(log1).to.deep.equal(log2)
+    })
+    it("log 60x1 weeks times", async ()=>{
+        var datalog = new Datalog({format:"weeks"})
+        let datalog2 = new Datalog({format:"weeks"})
+        if(fs.existsSync(datalog.filename)) {fs.unlinkSync(datalog.filename);};
+        let counter = 61
+        let time = moment()
+        let start = moment().clone()
+        for(i=1 ; i<= counter; i++){
+            datalog.log(i,time)
+            time.add(1,"weeks")
+        }
+        await setTimeoutPromise(1000)
+        await datalog2.readFileLog()
+        let log1 = datalog.readMemLog()[58]
+        let log2 = datalog2.readMemLog()[59]
+        expect(log1).to.deep.equal(log2)
     })
 
 })
-describe("24 hours Logging Tests" , ()=>{
-    before("Not Used", async ()=>{
-    })
-    it("24 Hours test1", async ()=>{
-        let chart = new datalog("test_24_hour")
-        await chart.logMin.startFileLog()
-        await chart.logHour.startFileLog()
-        await chart.logDay.startFileLog()
-        await chart.logWeek.startFileLog()
-        let sec = 0
-        let min = 0  //60
-        let hour = 0 //3600
-        let day = 0 // 86400
-        let time = moment("2018-03-31 22:58:58")
-        let origtime = time.clone()
-        let newtime = null
-        let lastTimeLogged = ""
-        let data = 1
-        for(hour = 0 ; hour < 24 ; hour++){
-            for (min = 0 ; min <60 ; min ++){
-                for (sec = 0 ; sec<60 ; sec++){
-                    chart.log(data,time)
-                    let lastSec = chart.getLastSec()
-                    assert.ok( lastSec.max == data, "Last Second max is not equal ",data,lastSec)
-                    time.add(1,"seconds")
-                    data++
-                }
-                //console.log("Minute Passed")
-                let lastMin = chart.getLastMin()
-                let format = chart.logMin.format
-                assert.equal( lastMin.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
-            }
-            //console.log("Hour Passed")
-            let lastHour = chart.getLastHour()
-            let format = chart.logHour.format
-        assert.equal( lastHour.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
-        }
-        await chart.logMin.endFileLog()
-        await chart.logHour.endFileLog()
-        await chart.logDay.endFileLog()
-        await chart.logWeek.endFileLog()
-        let lastDay = chart.getLastDay()
-        let format = chart.logDay.format
-        assert.equal( lastDay.label , origtime.clone().add(1,'days').format(format), "Last Day mismatch")
-        assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
-    })
-    it("24 Hours test2", async ()=>{
-        let f1 = await new File("template_24_hour_min.txt")
-        await f1.read()
-        await f1.write("test2_24_hour_min.log");
-        f1 = await new File("template_24_hour_hour.txt")
-        await f1.read()
-        await f1.write("test2_24_hour_hour.log");
-        f1 =await new File("template_24_hour_day.txt")
-        await f1.read()
-        await f1.write("test2_24_hour_day.log");
-        f1 = await new File("template_24_hour_week.txt")
-        await f1.read()
-        await f1.write("test2_24_hour_week.log");
-        let chart = new datalog("test2_24_hour")
-        await chart.logMin.startFileLog()
-        await chart.logHour.startFileLog()
-        await chart.logDay.startFileLog()
-        await chart.logWeek.startFileLog()
-        let sec = 0
-        let min = 0  //60
-        let hour = 0 //3600
-        let day = 0 // 86400
-        let time = moment("2018-04-01 23:58:58")
-        let origtime = time.clone()
-        let newtime = null
-        let lastTimeLogged = ""
-        let data = 1
-        for(hour = 0 ; hour < 24 ; hour++){
-            for (min = 0 ; min <60 ; min ++){
-                for (sec = 0 ; sec<60 ; sec++){
-                    chart.log(data,time)
-                    let lastSec = chart.getLastSec()
-                    assert.ok( lastSec.max == data, "Last Second max is not equal ",data,lastSec)
-                    time.add(1,"seconds")
-                    data++
-                }
-                //console.log("Minute Passed")
-                let lastMin = chart.getLastMin()
-                let format = chart.logMin.format
-                assert.equal( lastMin.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
-            }
-            //console.log("Hour Passed")
-            let lastHour = chart.getLastHour()
-            let format = chart.logHour.format
-        assert.equal( lastHour.label,origtime.clone().add(min+1,"minutes").add(hour,"hours").format(format) , "Last Minute Label is not matching after "+moment.duration(sec+min*60+hour*3600, "seconds").humanize()+time.format()   )
-        }
-        await chart.logMin.endFileLog()
-        await chart.logHour.endFileLog()
-        await chart.logDay.endFileLog()
-        await chart.logWeek.endFileLog()
-        let lastDay = chart.getLastDay()
-        let format = chart.logDay.format
-        assert.equal( lastDay.label , origtime.clone().add(1,'days').format(format), "Last Day mismatch")
-        assert.equal( chart.logDay.arrData[chart.logDay.maxIndex-1].label , origtime.format(format), "Last Day mismatch")
-    })
-    it("24 Hours test3", async ()=>{
-        let f1 = await new File("template_24_hour_min.txt")
-        await f1.read()
-        await f1.write("test3_24_hour_min.log");
-        f1 = await new File("template_24_hour_hour.txt")
-        await f1.read()
-        await f1.write("test3_24_hour_hour.log");
-        f1 =await new File("template_24_hour_day.txt")
-        await f1.read()
-        await f1.write("test3_24_hour_day.log");
-        f1 = await new File("template_24_hour_week.txt")
-        await f1.read()
-        await f1.write("test3_24_hour_week.log");
-        let chart = new datalog("test3_24_hour")
-        await chart.logMin.startFileLog()
-        await chart.logHour.startFileLog()
-        await chart.logDay.startFileLog()
-        await chart.logWeek.startFileLog()
-        let testchart = chart.getChartHour()
-        await chart.logMin.endFileLog()
-        await chart.logHour.endFileLog()
-        await chart.logDay.endFileLog()
-        await chart.logWeek.endFileLog()
 
-    })
-})
