@@ -10,15 +10,15 @@ const util = require("util")
 const setTimeoutPromise = util.promisify(setTimeout);
 const File = require('ucipass-file')
 const readline = require('readline');
+const defaultSettings = {
+    name: "default",
+    logdir: path.join(appRoot,"log"),
+    format: "seconds",
+    maxSize: 60
+}
 
 class Datalog{
     constructor(settings){
-        let defaultSettings = {
-            name: "default",
-            logdir: path.join(appRoot,"log"),
-            format: "seconds",
-            maxSize: 60
-        }
         let def = _.defaults(settings,defaultSettings)
         this.name = def.name
         this.filename = path.join(def.logdir, "datalog_"+def.name+"_"+def.format+".log")
