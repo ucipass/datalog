@@ -14,8 +14,15 @@ const setTimeoutPromise = util.promisify(setTimeout);
 const dir = path.join(appRoot)
 const winston = require("winston")
 const _ = require("lodash")
+const readLastLines = require('read-last-lines');
 
 describe("Quick Utility Tests" , ()=>{
+    it.only("Read last 60 lines", async()=>{
+        let filename = path.join(appRoot,"log","linecount.txt")
+        let lines = await readLastLines.read(filename, 2)
+        console.log(lines.split("\n").length)
+        return true
+    })
     it("Quicktest lodash defaults", ()=>{
         var json1 = { a:1,b:2,c:3}
         var json2 = { a:11,b:11,c:11}
@@ -42,6 +49,43 @@ describe("Quick Utility Tests" , ()=>{
 })
 
 describe("Datalog Main Logging Test" , async ()=>{
+    it("One Month Log with some logs disables", async ()=>{
+        let logdir = path.join(appRoot,"log")
+        let name = "testcombi"
+        fs.readdirSync(logdir).forEach((file)=>{
+            if( file.startsWith("datalog_testcombi")) fs.unlinkSync(path.join(logdir, file))
+        })
+        let logSec = new Datalog({format:"seconds",name:"testcombi",logEnabled:false})
+        let logMin = new Datalog({format:"minutes",name:"testcombi"})
+        let logHour = new Datalog({format:"hours",name:"testcombi"})
+        let logDay = new Datalog({format:"days",name:"testcombi"})
+        let logWeek = new Datalog({format:"weeks",name:"testcombi"})
+        function log(value,time){
+            logSec.log(value,time)
+            logMin.log(value,time)
+            logHour.log(value,time)
+            logDay.log(value,time)
+            logWeek.log(value,time)
+        }
+        let counter = 60*60*24
+        let time = moment("2000-01-01 10:00:00","YYYY-MM-DD HH:mm:ss")
+        for(i=1 ; i<= counter; i++){
+            log(i,time)
+            time.add(1,"seconds")
+        }
+        await setTimeoutPromise(1000)
+        let numSec = logSec.readMemLog().filter( (item)=> item.label != null )
+        let numMin = logMin.readMemLog().filter( (item)=> item.label != null )
+        let numHour = logHour.readMemLog().filter( (item)=> item.label != null )
+        let numDay = logDay.readMemLog().filter( (item)=> item.label != null )
+        let numWeek = logWeek.readMemLog().filter( (item)=> item.label != null )
+        //expect(numSec.length).to.equal(50)
+        //expect(numMin.length).to.equal(40)
+        //expect(numHour.length).to.equal(30)
+        //expect(numDay.length).to.equal(20)
+        //expect(numWeek.length).to.equal(12) // 10 Days added spanned 2 more weeks from Sat,Sun,Mon...,Sat,Sun,Mon
+        return true
+    })
     it("Combined Test 10x sec,min,hour,day,week", async ()=>{
         let logdir = path.join(appRoot,"log")
         let name = "testcombi"

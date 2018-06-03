@@ -14,7 +14,8 @@ const defaultSettings = {
     name: "default",
     logdir: path.join(appRoot,"log"),
     format: "seconds",
-    maxSize: 60
+    maxSize: 60,
+    logEnabled: true
 }
 
 class Datalog{
@@ -23,13 +24,14 @@ class Datalog{
         this.name = def.name
         this.filename = path.join(def.logdir, "datalog_"+def.name+"_"+def.format+".log")
         this.maxIndex = def.maxSize - 1
-        this.format =           // moment.js format used to determine if data belong to the same time period
+        this.format =           // DON NOT CHANGE! moment.js format used to determine if data belong to the same time period
         "seconds" == def.format ? "YYYY-MM-DD HH:mm:ss" :
         "minutes" == def.format ? "YYYY-MM-DD HH:mm:00" :
         "hours" == def.format ? "YYYY-MM-DD HH:00:00" :
         "days" == def.format ? "YYYY-MM-DD ddd" :
         "weeks" == def.format ? "YYYY wo [week]" :
         "YYYY-MM-DD HH:mm:ss"
+        this.logEnabled = def.logEnabled
         this.arrData = new Array(def.maxSize).fill({
                 label:null,     // datatime format in type string for X coordinates and debugging
                 lastTime:null,  // datatime in type moment
@@ -75,7 +77,7 @@ class Datalog{
                 min: this.arrData[this.maxIndex].min,
                 count: this.arrData[this.maxIndex].count
             }
-            if (logdata.label !=null){    // If there is no data do not log! 
+            if ( this.logEnabled && logdata.label !=null){    // If there is no data do not log! 
                 this.logger.info(logdata) // WRITE DATA TO LOG!
             }            
             let json = {
