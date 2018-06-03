@@ -85,7 +85,7 @@ describe("Datalog Main Logging Test" , async ()=>{
         lastDay.forEach(line => {
             logWeek.log(line.avg, moment(line.label,logWeek.format))
         });
-    })
+    }).timeout(5000);
     it("Combined Test 10x sec,min,hour,day,week", async ()=>{
         let logdir = path.join(appRoot,"log")
         let name = "testcombi"
