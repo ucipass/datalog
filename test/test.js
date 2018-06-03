@@ -18,10 +18,19 @@ const _ = require("lodash")
 const readLastLines = require('read-last-lines');
 
 describe("Quick Utility Tests" , ()=>{
-    it.skip("Read last 60 lines ", async()=>{
-        let filename = path.join(appRoot,"datalog_year_minutes.log")
+    it("Read last 60 lines ", async()=>{
+        let filename = path.join(appRoot,"test60.txt")
+        let f = new File(filename)
+        let s = ""
+        for(let i=0; i <200; i++){
+            s = s + "line"+ i.toString()+"\n"
+        }
+        await f.writeString(s)
         let lines = await readLastLines.read(filename, 122)
-        console.log(lines.split(/\r?\n/).length)
+        linenumber = lines.split(/\r?\n/).length
+        await f.unlink()
+        let result = linenumber <130
+        assert.isTrue(result)
     })
     it("Quicktest lodash defaults", ()=>{
         var json1 = { a:1,b:2,c:3}
@@ -49,7 +58,7 @@ describe("Quick Utility Tests" , ()=>{
 })
 
 describe("Datalog Main Logging Test" , async ()=>{
-    it.only("Read back only the last 60 items", async ()=>{
+    it("Read back only the last 60 items", async ()=>{
         let name = "year"
         let logdir = path.join (appRoot,"log")
         let zipfile = path.join(appRoot,"datalog.zip")
