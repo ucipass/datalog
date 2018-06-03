@@ -41,6 +41,7 @@ class Datalog{
                 max: 0,         // maximum value during the format time period
                 min:0           // minimum value during the format time period
             })
+        this.arrData.name = this.name
         this.logger = new (winston.Logger)({
             transports: [
                 new (winston.transports.File)({
