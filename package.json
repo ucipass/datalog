@@ -1,6 +1,6 @@
 {
   "name": "ucipass-chart",
-  "version": "1.3.2",
+  "version": "2.0.0",
   "description": "timestamp and log: livedata by minute/hour/day/week/month/year",
   "main": "index.js",
   "scripts": {
