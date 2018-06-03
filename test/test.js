@@ -17,7 +17,7 @@ const _ = require("lodash")
 const readLastLines = require('read-last-lines');
 
 describe("Quick Utility Tests" , ()=>{
-    it.only("Read last 60 lines", async()=>{
+    it.only("Read last 60 lines ", async()=>{
         let filename = path.join(appRoot,"log","linecount.txt")
         let lines = await readLastLines.read(filename, 2)
         console.log(lines.split("\n").length)
