@@ -125,7 +125,8 @@ class Datalog{
         return p
     }
     readMemLog(){
-        return this.arrData.map((item)=>{
+        let msg = { name: this.name }
+        msg.data = this.arrData.map((item)=>{
             return {
                 label : item.label, 
                 avg: item.avg,
@@ -134,6 +135,7 @@ class Datalog{
                 count: item.count                
             } 
         })
+        return msg
     }
 }
 
