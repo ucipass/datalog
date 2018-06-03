@@ -97,6 +97,7 @@ class Datalog{
     async readFileLog(){
         var resolve,reject
         var p = new Promise((res,rej)=>{resolve=res;reject=rej})
+        if( !fs.existsSync(this.filename) ) {return p;}
         console.log('Started reading log file:',this.filename);
         let lines = await readLastLines.read(this.filename, 122)
         let lArray = lines.split(/\r?\n/)
