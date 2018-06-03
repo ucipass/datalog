@@ -119,6 +119,7 @@ class Datalog{
                 console.log("Error during JSON parse",error)
             }                
         });
+        console.log('Finished reading log file:',this.filename);
         resolve(this.arrData)
         return p
     }
