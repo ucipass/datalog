@@ -22,6 +22,7 @@
   "dependencies": {
     "app-root-path": "^2.0.1",
     "chai": "^4.1.2",
+    "decompress": "^4.2.0",
     "fast-csv": "^2.4.1",
     "json2csv": "^4.1.2",
     "lodash": "^4.17.10",

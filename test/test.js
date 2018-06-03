@@ -5,6 +5,7 @@ var should = chai.should();  // Using Should style
 const fs = require("fs")
 const path = require("path")
 const appRoot = require("app-root-path").path
+const decompress = require("decompress")
 var util = require("util")
 var File = require("ucipass-file")
 var moment = require("moment")
@@ -17,11 +18,10 @@ const _ = require("lodash")
 const readLastLines = require('read-last-lines');
 
 describe("Quick Utility Tests" , ()=>{
-    it.only("Read last 60 lines ", async()=>{
-        let filename = path.join(appRoot,"log","linecount.txt")
-        let lines = await readLastLines.read(filename, 2)
-        console.log(lines.split("\n").length)
-        return true
+    it.skip("Read last 60 lines ", async()=>{
+        let filename = path.join(appRoot,"datalog_year_minutes.log")
+        let lines = await readLastLines.read(filename, 122)
+        console.log(lines.split(/\r?\n/).length)
     })
     it("Quicktest lodash defaults", ()=>{
         var json1 = { a:1,b:2,c:3}
@@ -49,42 +49,33 @@ describe("Quick Utility Tests" , ()=>{
 })
 
 describe("Datalog Main Logging Test" , async ()=>{
-    it("One Month Log with some logs disables", async ()=>{
-        let logdir = path.join(appRoot,"log")
-        let name = "testcombi"
-        fs.readdirSync(logdir).forEach((file)=>{
-            if( file.startsWith("datalog_testcombi")) fs.unlinkSync(path.join(logdir, file))
-        })
-        let logSec = new Datalog({format:"seconds",name:"testcombi",logEnabled:false})
-        let logMin = new Datalog({format:"minutes",name:"testcombi"})
-        let logHour = new Datalog({format:"hours",name:"testcombi"})
-        let logDay = new Datalog({format:"days",name:"testcombi"})
-        let logWeek = new Datalog({format:"weeks",name:"testcombi"})
-        function log(value,time){
-            logSec.log(value,time)
-            logMin.log(value,time)
-            logHour.log(value,time)
-            logDay.log(value,time)
-            logWeek.log(value,time)
-        }
-        let counter = 60*60*24
-        let time = moment("2000-01-01 10:00:00","YYYY-MM-DD HH:mm:ss")
-        for(i=1 ; i<= counter; i++){
-            log(i,time)
-            time.add(1,"seconds")
-        }
-        await setTimeoutPromise(1000)
-        let numSec = logSec.readMemLog().filter( (item)=> item.label != null )
-        let numMin = logMin.readMemLog().filter( (item)=> item.label != null )
-        let numHour = logHour.readMemLog().filter( (item)=> item.label != null )
-        let numDay = logDay.readMemLog().filter( (item)=> item.label != null )
-        let numWeek = logWeek.readMemLog().filter( (item)=> item.label != null )
-        //expect(numSec.length).to.equal(50)
-        //expect(numMin.length).to.equal(40)
-        //expect(numHour.length).to.equal(30)
-        //expect(numDay.length).to.equal(20)
-        //expect(numWeek.length).to.equal(12) // 10 Days added spanned 2 more weeks from Sat,Sun,Mon...,Sat,Sun,Mon
-        return true
+    it.only("Read back only the last 60 items", async ()=>{
+        let name = "year"
+        let logdir = path.join (appRoot,"log")
+        let zipfile = path.join(appRoot,"datalog.zip")
+        await decompress(zipfile,logdir )
+        let logSec = new Datalog({logdir:logdir,format:"seconds",name:name,logEnabled:false})
+        let logMin = new Datalog({logdir:logdir,format:"minutes",name:name})
+        let logHour = new Datalog({logdir:logdir,format:"hours",name:name})
+        let logDay = new Datalog({logdir:logdir,format:"days",name:name})
+        let logWeek = new Datalog({logdir:logdir,format:"weeks",name:name})
+        let lastMin = await logMin.readFileLog()
+        let lastHour = await logHour.readFileLog()
+        let lastDay = await logDay.readFileLog()
+        let lastWeek = await logWeek.readFileLog()
+        expect(lastMin[59].label).to.deep.equal("2000-12-31 09:58:00")
+        expect(lastHour[59].label).to.deep.equal("2000-12-31 08:00:00")
+        expect(lastDay[59].label).to.deep.equal("2000-12-30 Sat")
+        expect(lastWeek[59].label).to.deep.equal("2000 53rd week")
+        lastMin.forEach(line => {
+            logHour.log(line.avg, moment(line.label,logHour.format))
+        });
+        lastHour.forEach(line => {
+            logDay.log(line.avg, moment(line.label,logDay.format))
+        });
+        lastDay.forEach(line => {
+            logWeek.log(line.avg, moment(line.label,logWeek.format))
+        });
     })
     it("Combined Test 10x sec,min,hour,day,week", async ()=>{
         let logdir = path.join(appRoot,"log")

@@ -10,6 +10,7 @@ const util = require("util")
 const setTimeoutPromise = util.promisify(setTimeout);
 const File = require('ucipass-file')
 const readline = require('readline');
+const readLastLines = require('read-last-lines');
 const defaultSettings = {
     name: "default",
     logdir: path.join(appRoot,"log"),
@@ -97,35 +98,27 @@ class Datalog{
         var resolve,reject
         var p = new Promise((res,rej)=>{resolve=res;reject=rej})
         console.log('Started reading log file:',this.filename);
-        const rl = readline.createInterface({
-            input: fs.createReadStream(this.filename),
-            crlfDelay: Infinity
-        });
-        rl.on('line', (line) => {
-            //console.log(`Line from file: ${line}`);
+        let lines = await readLastLines.read(this.filename, 122)
+        let lArray = lines.split(/\r?\n/)
+        lArray.forEach(line => {
             try {
-                let j = JSON.parse(line)
-                this.arrData.shift()
-                this.arrData.push({
-                    label: j.label,
-                    lastTime: moment(j.label,this.format),
-                    max: j.max,
-                    avg: j.avg,
-                    min: j.min,
-                    count: 1               
-                })
+                if (line.length > 1){
+                    let j = JSON.parse(line.trim())
+                    this.arrData.shift()
+                    this.arrData.push({
+                        label: j.label,
+                        lastTime: moment(j.label,this.format),
+                        max: j.max,
+                        avg: j.avg,
+                        min: j.min,
+                        count: 1               
+                    })
+                }
             } catch (error) {
                 console.log("Error during JSON parse",error)
-            }
+            }                
         });
-        rl.on('close', () => {
-            console.log('Finished reading log file:',this.filename);
-            resolve("Success Reading file: "+this.filename)
-        });
-        rl.on('error', () => {
-            console.log('Error reading log file:',this.filename);
-            Rejct("ERROR Reading file: "+this.filename)
-        });
+        resolve(this.arrData)
         return p
     }
     readMemLog(){
