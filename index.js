@@ -23,6 +23,7 @@ class Datalog{
     constructor(settings){
         let def = _.defaults(settings,defaultSettings)
         this.name = def.name
+        this.formatName = def.format
         this.filename = path.join(def.logdir, "datalog_"+def.name+"_"+def.format+".log")
         this.maxIndex = def.maxSize - 1
         this.format =           // DON NOT CHANGE! moment.js format used to determine if data belong to the same time period
@@ -125,7 +126,7 @@ class Datalog{
         return p
     }
     readMemLog(){
-        let msg = { name: this.name }
+        let msg = { name: this.name, format: this.formatName }
         msg.data = this.arrData.map((item)=>{
             return {
                 label : item.label, 
