@@ -106,29 +106,44 @@ class Datalog{
         var resolve,reject
         var p = new Promise((res,rej)=>{resolve=res;reject=rej})
         if( !fs.existsSync(this.filename) ) {resolve(this.arrData);return p;}
-        log.info('Started reading log file:',this.filename);
-        let lines = await readLastLines.read(this.filename, 122)
-        let lArray = lines.split(/\r?\n/)
-        lArray.forEach(line => {
+        log.info('Started reading log file:',this.filename,new Date());
+        let lineCounter = 0;
+        let lines = []
+        let format = this.format
+        let filename = this.filename
+        let arrData = this.arrData
+        var lineReader = require('reverse-line-reader');
+        lineReader.eachLine(this.filename, function(line, last, cb) {
+            log.debug("Current Line:",line);
             try {
                 if (line.length > 1){
                     let j = JSON.parse(line.trim())
-                    this.arrData.shift()
-                    this.arrData.push({
+                    lines.push({
                         label: j.label,
-                        lastTime: moment(j.label,this.format),
+                        lastTime: moment(j.label,format),
                         max: j.max,
                         avg: j.avg,
                         min: j.min,
                         count: j.count               
                     })
+                    lineCounter++
                 }
             } catch (error) {
                 console.log("Error during JSON parse",error)
-            }                
+            }              
+
+            if (lineCounter == 60 || last) {
+                cb(false); // stop reading
+                log.info('Finished reading log file:',filename, new Date());
+                while (lines.length > 0) {
+                    arrData.shift()
+                    arrData.push( lines.pop() )
+                }
+               resolve(arrData)
+            } else {
+                cb();
+            }
         });
-        log.info('Finished reading log file:',this.filename);
-        resolve(this.arrData)
         return p
     }
     readMemLog(){
