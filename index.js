@@ -5,6 +5,8 @@ const dir = path.join( appRoot, "log")
 const _ = require("lodash")  //used for defaults
 const dirLogFile = path.join( appRoot, "mytest.log")
 const winston = require('winston');
+const log = new (winston.Logger)({transports: [ new (winston.transports.Console)({level:"error"}) ]});
+//log.transports.console.level = "error"
 const moment = require('moment')
 const util = require("util")
 const setTimeoutPromise = util.promisify(setTimeout);
@@ -53,12 +55,15 @@ class Datalog{
                 })
             ]
         });
+        this.initComplete = this.logEnabled ? this.readFileLog() : Promise.resolve(true)
+        this.init = ()=> { return this.initComplete }
     }
-    log(newdata,newtime){ // newdata is type float, newtime is type moment
+    async log(newdata,newtime){ // newdata is type float, newtime is type moment
+        await this.initComplete
         if (newtime == null) newtime = moment() // normally you should send time but if not current time will be used
         let lastData = this.arrData[this.maxIndex] // this is to compare new incoming data/time with last data in memory
         if (newtime.isBefore(lastData.lastTime)){
-            console.log("Discarding...incoming time of log:",newtime.format(),"is before last log:",lastData.lastTime.format())
+            log.error("Discarding...incoming time of log:",newtime.format(),"is before last log:",lastData.lastTime.format())
             return false;
         }
         // If data is in the same time duration do not log to file rather average it
@@ -95,12 +100,13 @@ class Datalog{
             this.arrData.shift()
             this.arrData.push(json)
         }
+        return Promise.resolve(true)
     }
     async readFileLog(){
         var resolve,reject
         var p = new Promise((res,rej)=>{resolve=res;reject=rej})
-        if( !fs.existsSync(this.filename) ) {return p;}
-        console.log('Started reading log file:',this.filename);
+        if( !fs.existsSync(this.filename) ) {resolve(this.arrData);return p;}
+        log.info('Started reading log file:',this.filename);
         let lines = await readLastLines.read(this.filename, 122)
         let lArray = lines.split(/\r?\n/)
         lArray.forEach(line => {
@@ -114,14 +120,14 @@ class Datalog{
                         max: j.max,
                         avg: j.avg,
                         min: j.min,
-                        count: 1               
+                        count: j.count               
                     })
                 }
             } catch (error) {
                 console.log("Error during JSON parse",error)
             }                
         });
-        console.log('Finished reading log file:',this.filename);
+        log.info('Finished reading log file:',this.filename);
         resolve(this.arrData)
         return p
     }
