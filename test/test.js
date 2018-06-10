@@ -59,6 +59,11 @@ describe("Quick Utility Tests" , ()=>{
 })
 
 describe("Datalog Main Logging Test" , async ()=>{
+    before(()=>{
+        if (! fs.existsSync(logdir)){
+            fs.mkdirSync(logdir);
+        }
+    })    
     beforeEach(()=>{
         deleteTestLogs()
     })

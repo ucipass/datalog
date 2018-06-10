@@ -154,6 +154,7 @@ class Datalog{
                 avg: item.avg,
                 max: item.max,
                 min: item.min,
+                format: item.format,
                 count: item.count                
             } 
         })
