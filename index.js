@@ -147,8 +147,14 @@ class Datalog{
         return p
     }
     readMemLog(){
-        let msg = { name: this.name, format: this.format, formatName: this.formatName }
+        let msg = { name: this.name, format: this.format, formatName: this.formatName, maxset:0, minset:Number.MAX_VALUE }
         msg.data = this.arrData.map((item)=>{
+            if (item.max > msg.maxset) {
+                msg.maxset = item.max
+            }
+            if (item.min < msg.minset) {
+                msg.minset = item.min
+            }
             return {
                 label : item.label, 
                 avg: item.avg,
