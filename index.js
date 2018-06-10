@@ -147,14 +147,13 @@ class Datalog{
         return p
     }
     readMemLog(){
-        let msg = { name: this.name, format: this.formatName }
+        let msg = { name: this.name, format: this.format, formatName: this.formatName }
         msg.data = this.arrData.map((item)=>{
             return {
                 label : item.label, 
                 avg: item.avg,
                 max: item.max,
                 min: item.min,
-                format: item.format,
                 count: item.count                
             } 
         })
