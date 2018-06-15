@@ -16,7 +16,7 @@ const setTimeoutPromise = util.promisify(setTimeout);
 const dir = path.join(appRoot)
 const winston = require("winston")
 const _ = require("lodash")
-const readLastLines = require('read-last-lines');
+const lineReader = require('reverse-line-reader');
 
 describe("Quick Utility Tests" , ()=>{
     it("Read last 60 lines ", async()=>{
@@ -27,10 +27,22 @@ describe("Quick Utility Tests" , ()=>{
             s = s + "line"+ i.toString()+"\n"
         }
         await f.writeString(s)
-        let lines = await readLastLines.read(filename, 122)
-        linenumber = lines.split(/\r?\n/).length
+        await setTimeoutPromise(2000)
+        let resolve,reject
+        let index = 0
+        let lastLines = new Promise((res,rej)=>{ resolve=res,reject=rej})
+        lineReader.eachLine(filename, function(line, last, cb) {
+            if(last || index == 60){
+                resolve(index)
+                cb(false)
+                return;
+            }
+            index = index +1
+            cb()
+        })
+        await lastLines
         await f.unlink()
-        let result = linenumber <130
+        let result = index == 60
         assert.isTrue(result)
     })
     it("Quicktest lodash defaults", ()=>{

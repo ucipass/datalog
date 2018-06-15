@@ -7,12 +7,11 @@ const dirLogFile = path.join( appRoot, "mytest.log")
 const winston = require('winston');
 const log = new (winston.Logger)({transports: [ new (winston.transports.Console)({level:"error"}) ]});
 //log.transports.console.level = "error"
+var lineReader = require('reverse-line-reader');
 const moment = require('moment')
 const util = require("util")
 const setTimeoutPromise = util.promisify(setTimeout);
 const File = require('ucipass-file')
-const readline = require('readline');
-const readLastLines = require('read-last-lines');
 const defaultSettings = {
     name: "default",
     logdir: path.join(appRoot,"log"),
@@ -112,7 +111,6 @@ class Datalog{
         let format = this.format
         let filename = this.filename
         let arrData = this.arrData
-        var lineReader = require('reverse-line-reader');
         lineReader.eachLine(this.filename, function(line, last, cb) {
             log.debug("Current Line:",line);
             try {
